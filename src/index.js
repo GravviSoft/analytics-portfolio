@@ -1,17 +1,25 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+// const container = document.getElementById("root")
+// const root = ReactDOM.createRoot(container);
+// root.render(<App />)
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { PrimeReactProvider } from 'primereact/api';
+// import 'primereact/resources/themes/lara-light-indigo/theme.css';   // theme
+import 'primereact/resources/themes/lara-light-blue/theme.css'
+import 'primereact/resources/primereact.css';  
+import 'primeflex/primeflex.css';                                   // css utility
+import 'primeicons/primeicons.css';                     // core css                   // core css
+import './App.css';
+import './flags.css';
+import App from './components/App';
+
+const root = createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+  <StrictMode>
+        <PrimeReactProvider>
+            <App />
+        </PrimeReactProvider>
+  </StrictMode>
 );
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
