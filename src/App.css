@@ -648,4 +648,21 @@ float: right; */
     100% {
       background-position: right
     }
-  } 
+  }
+  
+
+
+a.p-tabview-nav-link, a.p-tabview-nav-link, li.p-highlight  a:hover.p-tabview-nav-link{
+  color: gray;
+  text-decoration: none;
+    border-color: none;
+
+}
+
+li.p-tabview-ink-bar{
+  background-color: white;
+}
+
+a {
+  text-decoration: none;
+}

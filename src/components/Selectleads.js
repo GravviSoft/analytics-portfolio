@@ -47,7 +47,7 @@ function Selectleads(){
             axios.post('http://localhost:5000/selectleads', {cookie: document.cookie, industry: ind, location: loc})
             .then(dbResult=>{
                 console.log(dbResult.data.user_id)
-                setDataBaseMsg({msg: "Successfully Registered.", color: 'success'})
+                setDataBaseMsg({msg: "Successfully Selected Leads.", color: 'success'})
                 document.cookie = `${dbResult.data.user_id}; path=/dashboard`
                 window.location.href = '/dashboard'
             })

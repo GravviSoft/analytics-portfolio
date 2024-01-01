@@ -1,13 +1,7 @@
 import React, {useEffect, useState, useRef} from 'react';
-// import Navbar from './Navbar';
 import Footer from './Footer';
 import { Smallinforectangle } from './Infoblock';
-import { Button } from './Button';
-// import DataTable from 'datatables.net-dt';
 import axios from 'axios';
-import $ from 'jquery'
-// import 'primereact/resources/themes/saga-blue/theme.css';
-// import 'primereact/resources/primereact.min.css';
 import EmailSettings from "./Dashboardcomp/Emailsettings"
 import ModalNewLead from "./Dashboardcomp/Modalnewlead"
 import { DataTable } from 'primereact/datatable';
@@ -15,37 +9,20 @@ import { Column } from 'primereact/column';
 import { InputText } from 'primereact/inputtext';
 import { Toast } from 'primereact/toast';
 import { Button as PrimeButton }  from 'primereact/button';
-import { FileUpload } from 'primereact/fileupload';
-import { Rating } from 'primereact/rating';
 import { Toolbar } from 'primereact/toolbar';
-import { InputTextarea } from 'primereact/inputtextarea';
-import { RadioButton } from 'primereact/radiobutton';
-import { InputNumber } from 'primereact/inputnumber';
-import { Dialog } from 'primereact/dialog';
 import { Tag } from 'primereact/tag';
 import { Link } from "react-router-dom";
 import { FilterMatchMode, FilterOperator } from 'primereact/api';
-import { ProgressSpinner } from 'primereact/progressspinner';
-import { Accordion, AccordionTab } from 'primereact/accordion';
-import { TabView, TabPanel } from 'primereact/tabview';
-import { Splitter, SplitterPanel } from 'primereact/splitter';       
-import { Fieldset } from 'primereact/fieldset';
-import { ConfirmDialog } from 'primereact/confirmdialog'; // For <ConfirmDialog /> component
-import { confirmDialog } from 'primereact/confirmdialog'; // For confirmDialog method                  
+import { ProgressSpinner } from 'primereact/progressspinner';                
 import ModalSwitch from './Dashboardcomp/Modalswitch';
-import { Dropdown } from 'primereact/dropdown';
 import { getStatusNum, getStatusColor } from './helpers/swithstatus';
+import Leadchart from './Dashboardcomp/Chart'
+import { Badge } from 'primereact/badge';
 
 
 function Dashboard(){
 
 
-    // const newlead = {company: "",
-    //     industry: "",
-    //     location: "",
-    //     phone: "",
-    //     email: "",
-    //     url: ""});
     const [newlead, setNewLead] = useState({company: "",
         industry: "",
         location: "",
@@ -59,13 +36,9 @@ function Dashboard(){
     const [submitNewLead, setSubmitNewLead] = useState(false)
     const [errors, setErrors] = useState({})
 
-    const [productDialog, setProductDialog] = useState(false);
-
-    const [dataBaseMsg, setDataBaseMsg] = useState({msg: "", color: ""})
     const [selectedLead, setSelectedLead] = useState(null);
 
     const [filters, setFilters] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
 
     const [leads, setLeads] = useState([]);
@@ -94,8 +67,6 @@ function Dashboard(){
     const [leadstatus, setLeadStatus] = useState(null)
     const [leadstatusNum, setLeadStatusNum] = useState(0)
     const statuses = ['new client', 'dnc', 'meeting', 'negotiation',  'prospect', 'unqualified']
-    const [tagCallback, setTagCallback] = useState(null)
-
 
     const [func, setFunc] = useState({})
 
@@ -105,6 +76,81 @@ function Dashboard(){
     let x = document.cookie
     let user_id = x.split(";")[0]
 
+
+    const [chartData, setChartData] = useState({});
+    const [chartOptions, setChartOptions] = useState({});
+    const [labels, setLabels] = useState(null)
+    const [industryData, setIndustryData] = useState(null)
+    const [backgroundColorInd, setBackgroundColorInd] = useState(null)
+    const [hoverBackgroundColorInd, setHoverBackgroundColorInd] = useState(null)
+
+    useEffect(() => {
+        const data = {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Industries',
+                    data: industryData,
+                    backgroundColor: backgroundColorInd,
+                    borderColor: hoverBackgroundColorInd,
+                    borderWidth: 1
+                }
+            ]
+        };
+        const options = {scales: {y: {beginAtZero: true}},};
+        setChartData(data);
+        setChartOptions(options);
+    }, [industryData]);
+
+    const [chartData2, setChartData2] = useState({});
+    const [chartOptions2, setChartOptions2] = useState({});
+    const [labels2, setLabels2] = useState(null)
+    const [locationData, setLocationData] = useState(null)
+    const [backgroundColorLoc, setBackgroundColorLoc] = useState(null)
+    const [hoverBackgroundColorLoc, setHoverBackgroundColorLoc] = useState(null)
+
+    useEffect(() => {
+        const data = {
+            labels: labels2,
+            datasets: [
+                {
+                    label: 'Location',
+                    data: locationData,
+                    backgroundColor: backgroundColorLoc,
+                    borderColor: hoverBackgroundColorLoc,
+                    borderWidth: 1
+                }
+            ]
+        };
+        const options = {scales: {y: {beginAtZero: true}}};
+        setChartData2(data);
+        setChartOptions2(options);
+    }, [locationData]);
+
+    const [chartData3, setChartData3] = useState({});
+    const [chartOptions3, setChartOptions3] = useState({});
+    const [labels3, setLabels3] = useState(null)
+    const [statusData, setStatusData] = useState(null)
+    const [backgroundColorSta, setBackgroundColorSta] = useState(null)
+    const [hoverBackgroundColorSta, setHoverBackgroundColorSta] = useState(null)
+
+    useEffect(() => {
+        const data = {
+            labels: labels3,
+            datasets: [
+                {
+                    label: 'Status',
+                    data: statusData,
+                    backgroundColor: backgroundColorSta,
+                    borderColor: hoverBackgroundColorSta,
+                    borderWidth: 1
+                }
+            ]
+        };
+        const options = {indexAxis: 'y'};
+        setChartData3(data);
+        setChartOptions3(options);
+    }, [statusData]);
 
     function Inputchange(evt){
         const { name, value } = evt.target
@@ -118,6 +164,8 @@ function Dashboard(){
         })
     }
 
+    const [emailCount, setEmailCount] = useState(0)
+    const [emailVerifyCount, setEmailVerifyCount] = useState(0)
 
     useEffect(() => {
         if (hitDatabase){
@@ -126,10 +174,36 @@ function Dashboard(){
                 .then(dbResult=>{
                     setLeads(dbResult.data.leadInfo)
                     setTotalLeadCount(dbResult.data.leadInfo.length)
-                    let { userInfo } = dbResult.data
+                    const { userInfo, leadInfo, industryName, industryNum, backgroundColor, hoverBackgroundColor, locationName, locationNum, locationbackgroundColor, locationhoverBackgroundColor, statusName, statusNum, statusbackgroundColor, statushoverBackgroundColor} = dbResult.data
+
+                    setLabels(industryName)
+                    setIndustryData(industryNum)
+                    setBackgroundColorInd(backgroundColor)
+                    setHoverBackgroundColorInd(hoverBackgroundColor)
+
+                    setLabels2(locationName)
+                    setLocationData(locationNum)
+                    setBackgroundColorLoc(locationbackgroundColor)
+                    setHoverBackgroundColorLoc(locationhoverBackgroundColor)
+
+                    setLabels3(statusName)
+                    setStatusData(statusNum)
+                    setBackgroundColorSta(statusbackgroundColor)
+                    setHoverBackgroundColorSta(statushoverBackgroundColor)
+
                     userInfo.industry = userInfo.industry.join(", ")
                     userInfo.location = userInfo.location.join(", ")
                     setUserInformation(userInfo)
+
+                    let emailCounter = 0;
+                    let emailVerCounter = 0;
+                    for (const obj of leadInfo) {
+                        if (obj.email !== '') emailCounter++;
+                        if (obj.email_verify !== null && obj.email_verify.state === 'deliverable') emailVerCounter++
+                    }
+                    setEmailVerifyCount(emailVerCounter)
+                    setEmailCount(emailCounter)
+                    console.log("emailCounter", emailCounter);
                 })
                 .catch(dbError=>console.log(dbError))
 
@@ -138,6 +212,7 @@ function Dashboard(){
         }
 
     }, [hitDatabase]);
+
 
     const onGlobalFilterChange = (e) => {
         const value = e.target.value;
@@ -172,14 +247,15 @@ function Dashboard(){
                 toast.current.show({ severity: 'success', summary: 'Successful', detail: 'Finished Scraping Leads', life: 3000 });
                 setHitDatabase(true)
                 setHeadlessBrowser(false)
-
             })
             .catch(dbError=>{
                 setPullingYellowPg(false)
-                setHeadlessBrowser(false)
                 toast.current.show({ severity: 'error', summary: 'Error',  detail: 'Error Scraping Leads', life: 3000 });
-
+                setHeadlessBrowser(false)
             })
+            setTimeout(function(){
+                setHeadlessBrowser(false)
+            }, 1500);
         }
     }, [pullingYellowPg]);
 
@@ -199,6 +275,9 @@ function Dashboard(){
                 setHeadlessBrowser(false)
                 toast.current.show({ severity: 'error', summary: 'Error',  detail: 'Error Scraping Leads', life: 3000 });
             })
+            setTimeout(function(){
+                setHeadlessBrowser(false)
+            }, 1500);
         }
     }, [pullingGoogle]);
 
@@ -216,8 +295,10 @@ function Dashboard(){
                 setPullEmail(false)
                 toast.current.show({ severity: 'error', summary: 'Error',  detail: 'Error Pulling Emails.', life: 3000 });
             })
+            setTimeout(function(){
+                setHeadlessBrowser(false)
+            }, 1500);
         }
-
     }, [pullEmail])
 
     
@@ -232,11 +313,18 @@ function Dashboard(){
                 setVerifyEmail(false)
                 toast.current.show({ severity: 'success', summary: 'Successful', detail: msg, life: 3000 });
                 setHitDatabase(true)
+                setTimeout(function(){
+                    setHitDatabase(true)
+                }, 1500);
             })
             .catch(dbError=>{
                     setVerifyEmail(false)
                     toast.current.show({ severity: 'error', summary: 'Error',  detail: 'Error Pulling Emails.', life: 3000 });
             })
+
+            setTimeout(function(){
+                setHeadlessBrowser(false)
+            }, 1500);
         }
 
     }, [verifyEmail])
@@ -398,6 +486,7 @@ function Dashboard(){
                     console.log(dbResult.data)
                     const { msg } = dbResult.data
                     toast.current.show({ severity: 'success', summary: 'Successful', detail: msg, life: 3000 });
+                    setHitDatabase(true)
                 })
                 .catch(dbError=>console.log(dbError))
         }
@@ -507,10 +596,16 @@ function Dashboard(){
     );
     
     const tagBodyTemp = (rowData) => {
-        
         return <Tag value={rowData.status} severity={getStatusColor(rowData.status)}></Tag>;
     };
 
+    const emailBody = (rowData) => {
+        if (rowData.email_verify !== null){
+                const { state, score } = rowData.email_verify 
+                return  <PrimeButton icon={<i className="pi pi-verified p-overlay-badge mr-4" style={{ fontSize: '1.5rem' }}><Badge severity={state === 'deliverable' ? 'success': 'danger'} value={score}></Badge></i>} size="small" label={rowData.email} rounded text severity={state === 'deliverable' ? 'success': 'danger'} tooltip={JSON.stringify(rowData.email_verify,null,'\t')} tooltipOptions={{ position: 'top', mouseTrack: true, mouseTrackTop: 15 }} /> 
+            }
+        // return rowData.email
+    }
 
     function setLeadStatusFunc(value){
         console.log(value)
@@ -540,12 +635,12 @@ function Dashboard(){
                 }} />}/> 
             </div>   
             <div className="card">
-                <Toolbar className="mb-4" start={leftToolbarTemplate} end={rightToolbarTemplate}></Toolbar>
-
-               {totalLeadCount > 0 &&  <EmailSettings emailBool={pullEmail} emailPull={()=> {
+               {totalLeadCount > 0 &&  <Leadchart chartData={chartData}  chartOptions={chartOptions} chartData2={chartData2} chartOptions2={chartOptions2} chartData3={chartData3} chartOptions3={chartOptions3}  /> }
+               {totalLeadCount > 0 &&  <EmailSettings emailBool={pullEmail} emailCount={emailCount} emailVerifyCount={emailVerifyCount} emailPull={()=> {
                     setFunc({name: emailPull})
                     setVisibleHeadlessDialouge(true)}
                     } verifyBool={verifyEmail} emailVerify={emailVerify} /> }
+                <Toolbar className="mb-4" start={leftToolbarTemplate} end={rightToolbarTemplate}></Toolbar>
 
                 <DataTable ref={dt} sortField="lead_id" sortOrder={-1}  value={leads} stripedRows paginator rows={5} rowsPerPageOptions={[5, 10, 25, 50]}size="large" editMode="row" dataKey="lead_id" onRowEditComplete={onRowEditComplete} selection={selectedLead}  onSelectionChange={(e) => setSelectedLead(e.value)}  filters={filters} globalFilterFields={['company', 'industry', 'location', 'phone', 'email']} header={header} emptyMessage="No leads found.">
                     <Column selectionMode="multiple" style={{ width: '1%' }} exportable={false}></Column>
@@ -553,21 +648,16 @@ function Dashboard(){
                     <Column body={companyBodyTemplate} field='company' style={{ width: '15%' }} editor={(options) => textEditor(options)}  header="Company"></Column>
                     <Column field="industry" style={{ width: '12%' }} editor={(options) => textEditor(options)}  header="Industry"></Column>
                     <Column field="location" style={{ width: '9%' }} editor={(options) => textEditor(options)}  header="Location"></Column>
-                    <Column field="phone" style={{width: "13%"}} editor={(options) => textEditor(options)}  header="Phone"></Column>
-                    <Column field='email' editor={(options) => textEditor(options)}  header="Email"></Column>
-                    <Column field="status" body={tagBodyTemp} header="Status" ></Column>
+                    <Column field="phone" style={{whiteSpace: "nowrap"}} editor={(options) => textEditor(options)}  header="Phone"></Column>
+                    <Column body={emailBody} editor={(options) => textEditor(options)}  header="Email"></Column>
+                    <Column field="status" style={{whiteSpace: "nowrap"}} body={tagBodyTemp} header="Status" ></Column>
                     <Column body={urlBodyTemplate} header="Url"></Column>
-                    {/* <Column rowEditor bodyStyle={{ textAlign: 'center'}} ></Column> */}
                     <Column style={{whiteSpace: "nowrap"}} body={actionBodyTemplate} exportable={false}></Column>
                 </DataTable>
                 
                 {/* MODALS */}
                 <ModalNewLead visibleNewLead={visibleNewLead} productDialogFooter={productDialogFooter} setVisibleNewLead={()=> closeNewLeadModal()}  company={newlead.company} industry={newlead.industry} location={newlead.location} phone={newlead.phone} email={newlead.email} url={newlead.url} companyError={errors.company} industryError={errors.industry} locationError={errors.location} phoneError={errors.phone} emailError={errors.email} leadStatus={newlead.status} setLeadStatus={setLeadStatusFunc}  statuses={statuses}  submitNewLead={submitNewLead} Formchange={Inputchange}  />
-                {/* setLeadStatus={setLeadStatusFunc}  */}
-                <ModalSwitch visibleHeadlessDialouge={visibleHeadlessDialouge} headlessBrowserDialogFooter={headlessBrowserDialogFooter} setVisibleHeadlessDialouge={() => setVisibleHeadlessDialouge(false)}  headlessBrowser={headlessBrowser} setHeadless={()=> {
-                    console.log(!headlessBrowser)
-                    setHeadlessBrowser(!headlessBrowser)}
-                    } />
+                <ModalSwitch visibleHeadlessDialouge={visibleHeadlessDialouge} headlessBrowserDialogFooter={headlessBrowserDialogFooter} setVisibleHeadlessDialouge={() => setVisibleHeadlessDialouge(false)}  headlessBrowser={headlessBrowser} setHeadless={()=> setHeadlessBrowser(!headlessBrowser)} />
             </div>
             <Footer />
     </div>

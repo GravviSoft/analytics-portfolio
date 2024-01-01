@@ -142,7 +142,7 @@ function CardDemo(props) {
             </div>
           <hr />
                 <CreateArea  addNote={addNoteToArray} />
-                <div className='flex justify-content-center align-left flex-wrap '>
+                <div className='flex justify-content-start align-left flex-wrap '>
                     {noteArray.map((item, index)=> <Note key={index} id={item.notes_id} date={item.date} title={item.title} content={item.content} toggleHeart={toggleHeart} like_note={item.like_note} deleteNote={deleteNoteFunc} /> )}
                 </div>
         </div>
