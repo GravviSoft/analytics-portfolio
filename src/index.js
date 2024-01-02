@@ -12,7 +12,6 @@ import 'primereact/resources/primereact.css';
 import 'primeflex/primeflex.css';                                   // css utility
 import 'primeicons/primeicons.css';                     // core css                   // core css
 import './App.css';
-import './flags.css';
 import App from './components/App';
 
 const root = createRoot(document.getElementById('root'));

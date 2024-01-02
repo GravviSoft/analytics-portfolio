@@ -5,13 +5,6 @@
     margin-bottom: 1rem;
 }
 
-/* * {
-  padding: 0;
-  margin: 0;
-  box-sizing: border-box;
-} */
-
-
 body {
   background: white;
   overflow-x: hidden;
@@ -33,6 +26,7 @@ footer p{
     margin-top: 2.5%;
     margin-bottom: 5%;
 }
+
 
 /* navbar */
 .navbar {
@@ -390,21 +384,6 @@ h6{
     font-weight: 100;
 }
 
-/* form>input {
-  border: 1px solid #1F2B6F;
-  background-color: #E8F0FE;
-  width: 350px;
-  border-radius: 3px;
-  font-family: "Source Sans Pro", sans-serif;
-  padding: 10px 15px;
-  margin: 0 auto 10px auto;
-  display: block;
-  text-align: center;
-  font-size: 18px;
-  color: black;
-  font-weight: 300;
-
-} */
 
 .rowcontainer {
   /* margin: 10% auto; */
@@ -423,15 +402,7 @@ h6{
   font-size: 40px;
   font-weight: 200;
 }
-/* .btn-comp a {
-  text-decoration: none;
-  color: white;
-}
-.btn-comp a:hover {
-  text-decoration: none;
-  color: #1F2B6F;
 
-} */
 
 .btn-comp{
   appearance: none;
@@ -515,12 +486,6 @@ h6{
     width: 70px;
   }
 
-    /* .card {
-      background: var(--surface-card);
-      padding: .5rem;
-      border-radius: 10px;
-      margin-bottom: 1rem;
-    } */
 
 
 

@@ -4,7 +4,6 @@ import 'primeflex/primeflex.css';                                   // css utili
 import 'primeicons/primeicons.css';
 import 'primereact/resources/primereact.css';                       // core css
 import './style.css';
-import './flags.css';
 import App from './App';
 
 test('renders learn react link', () => {
