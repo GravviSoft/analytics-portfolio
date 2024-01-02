@@ -5,10 +5,6 @@ const sequelize = new Sequelize(CONNECTION_STRING)
 const bcrypt = require('bcrypt');
 const { Builder, Browser, By, until } = require("selenium-webdriver");
 const chrome = require('selenium-webdriver/chrome');
-var jwt = require('jsonwebtoken');
-const { default: axios } = require('axios');
-// const emailable = require("emailable")("live_cddbfa67eed613c34879");
-const emailable = require("emailable")("test_6d6a830c441ad76f8b8b");
 
 
 module.exports = {
@@ -749,13 +745,6 @@ module.exports = {
 
 
 
-
-
-
-
-
-
-
         emailVerify: (req, res)=>{
             const { user_id } = req.params
             const { headlessBrowser } = req.body
@@ -795,50 +784,6 @@ module.exports = {
                 console.log(err)
             })
         },
-
-        // emailVerify: (req, res)=>{
-            // const { user_id } = req.params
-            // const { headlessBrowser } = req.body
-            // console.log(headlessBrowser, user_id)
-            // // set endpoint and your access key
-            //            // API EMAIL VERIFICATION
-            //     https://emailable.com/docs/api/#authentication
-            //     function verifyTheEmail(email, leadid){
-            //         emailable.verify(email)
-            //         .then(function (response) {
-            //             // asynchronously called
-            //             console.log(JSON.stringify(response))
-                        
-            //             sequelize.query(`UPDATE leads SET email_verify = '${JSON.stringify(response)}'  WHERE lead_id = '${leadid}'`)
-            //             .then(dbResult =>{
-            //                 console.log(dbResult)
-            //             })
-            //             .catch(err => console.log(err))
-                    
-            //         })
-            //         .catch(err => console.log(err))
-            //     }
-                // verifyTheEmail(email=dbEmail, leadid=dbLeadId)
-            // const access_key = 'ddd0376b7343b5285a75f84f25a8ae7a';
-            // const email_address = 'beau@graddkkssss.com';
-
-            // // verify email address via AJAX call
-            // axios.get(`http://apilayer.net/api/check?access_key=${access_key}&email=${email_address}&smtp=1&format=1`)
-            // .then(apiResponse=>{
-            //     console.log(apiResponse);
-            //     console.log(apiResponse.smtp_check);
-            //     console.log(apiResponse.score);
-            // })
-            // .catch(err => console.log(err))
-        // },
-
-
-
-
-
-
-
-
 
 
         postLead: (req, res)=>{

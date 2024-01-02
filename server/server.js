@@ -1,4 +1,4 @@
-// Horse1986!
+
 const express = require('express')
 const cors = require("cors");
 require('dotenv').config()
@@ -7,7 +7,6 @@ const { PORT_NUM } = process.env
 
 const app = express();
 
-// app.use(express.static('public'))
 app.use(cors())
 app.use(express.json())
 
