@@ -6,6 +6,7 @@ After cloning the project follow these steps:
 cd server
 touch .env
 npm install
+npm start server
 ```
 
 Copy and past the following into your .env file.  Make sure your connection string contains your unique postgresql database information.
@@ -19,6 +20,7 @@ Open another terminal in the main directory of the application(my-app).
 
 
 ```bash
+npm install
 npm start
 
 ```
