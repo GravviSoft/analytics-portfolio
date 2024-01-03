@@ -5,7 +5,8 @@ const sequelize = new Sequelize(CONNECTION_STRING)
 const bcrypt = require('bcrypt');
 const { Builder, Browser, By, until } = require("selenium-webdriver");
 const chrome = require('selenium-webdriver/chrome');
-
+// const emailable = require("emailable")("live_cddbfa67eed613c34879");
+const emailable = require("emailable")("test_6d6a830c441ad76f8b8b");
 
 module.exports = {
     seed: (req, res)=>{
@@ -270,61 +271,8 @@ module.exports = {
                                 }
                         }
                     }
-                    //GET EMAILS
-                    sequelize.query(`SELECT * FROM leads WHERE location SIMILAR TO '%${userLocation}%' AND industry SIMILAR TO '%${userIndustry}%' OR user_id = '${user_id}'`)
-                    .then(leadsResults =>{
-
-                        async function getEmails() {
-                            let email_driver;
-                            let leadNum = leadsResults[0].length
-                            while  (leadNum > 0) {
-                                for (i=0; i<leadsResults[0].length; i++){
-                                    leadNum -= 1
-                                    if (leadsResults[0][i].url.includes('http') && leadsResults[0][i].email === ""  ){
-                                        
-                                        console.log(leadsResults[0][i].url)
-
-                                        headlessBrowser ?  email_driver = new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build() : email_driver = await new Builder().forBrowser(Browser.CHROME).build();
-
-                                        // let driver = new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build();
-            
-                                        await email_driver.get(`${leadsResults[0][i].url}`).catch(err=> console.log(err))
-
-                                        const string_context = await email_driver.findElement(By.xpath(`//body`)).getText().catch(err =>console.log(err))
-                                        
-                                        if (string_context != undefined){
-                                            let array_mails = string_context.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
-                                            console.log(array_mails)
-
-                                            if (array_mails){
-                                                    // API EMAIL VERIFICATION
-                                                    // https://emailable.com/docs/api/#authentication
-                                                    function verifyTheEmail(db_email, db_lead_id){
-                                                        emailable.verify(db_email)
-                                                        .then(function (response) {
-                                                            // asynchronously called
-                                                            console.log(JSON.stringify(response))
-                                                            sequelize.query(`UPDATE leads SET email = '${db_email}', email_verify = '${JSON.stringify(response)}'  WHERE lead_id = '${db_lead_id}'`)
-                                                            .then(dbResult =>console.log(dbResult))
-                                                            .catch(err => console.log(err))
-                                                        })
-                                                        .catch(err => console.log(err))
-                                                    }
-
-                                                    verifyTheEmail(db_email=array_mails[0].toLowerCase(), db_lead_id=leadsResults[0][i].lead_id)
-                                            }
-                                        }
-                                        await email_driver.quit();
-                                    }
-                                    console.log(`Url count:  ${leadNum}`)
-                                }
-                            }
-                            res.status(200).send({msg: 'Finished Pulling Emails.'})
-                        }
-
-                        getEmails()
-                    })
-                    .catch(err=>res.status(400).send(err))
+                
+                res.status(200).send({msg: 'Finished Pulling Leads.'})
 
                 }
 
@@ -464,69 +412,15 @@ module.exports = {
                         }
 
                     }
-                    //GET EMAILS
-                    sequelize.query(`SELECT * FROM leads WHERE location SIMILAR TO '%${userLocation}%' AND industry SIMILAR TO '%${userIndustry}%' OR user_id = '${user_id}'`)
-                    .then(leadsResults =>{
 
-                        async function getEmails() {
-                            let email_driver;
-                            let leadNum = leadsResults[0].length
-                            while  (leadNum > 0) {
-                                for (i=0; i<leadsResults[0].length; i++){
-                                    leadNum -= 1
-                                    if (leadsResults[0][i].url.includes('http') && leadsResults[0][i].email === ""  ){
-                                        
-                                        console.log(leadsResults[0][i].url)
+                res.status(200).send({msg: 'Finished Pulling Leads.'})
 
-                                        headlessBrowser ?  email_driver = new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build() : email_driver = await new Builder().forBrowser(Browser.CHROME).build();
-
-                                        // let driver = new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().headless()).build();
-            
-                                        await email_driver.get(`${leadsResults[0][i].url}`).catch(err=> console.log(err))
-
-                                        const string_context = await email_driver.findElement(By.xpath(`//body`)).getText().catch(err =>console.log(err))
-                                        
-                                        if (string_context != undefined){
-                                            let array_mails = string_context.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi);
-                                            console.log(array_mails)
-
-                                            if (array_mails){
-                                                    // API EMAIL VERIFICATION
-                                                    // https://emailable.com/docs/api/#authentication
-                                                    function verifyTheEmail(db_email, db_lead_id){
-                                                        emailable.verify(db_email)
-                                                        .then(function (response) {
-                                                            // asynchronously called
-                                                            console.log(JSON.stringify(response))
-                                                            sequelize.query(`UPDATE leads SET email = '${db_email}', email_verify = '${JSON.stringify(response)}'  WHERE lead_id = '${db_lead_id}'`)
-                                                            .then(dbResult =>console.log(dbResult))
-                                                            .catch(err => console.log(err))
-                                                        })
-                                                        .catch(err => console.log(err))
-                                                    }
-
-                                                    verifyTheEmail(db_email=array_mails[0].toLowerCase(), db_lead_id=leadsResults[0][i].lead_id)
-                                            }
-                                        }
-                                        await email_driver.quit();
-                                    }
-                                    console.log(`Url count:  ${leadNum}`)
-                                }
-                            }
-                            res.status(200).send({msg: 'Finished Pulling Emails.'})
-                        }
-
-                        getEmails()
-                    })
-                    .catch(err=>res.status(400).send(err))
                 }
 
                 scrapeYP()
+
                 })
-            .catch(err => {
-                console.log(err)
-                res.status(400).send(err)
-            })
+            .catch(err => res.status(400).send(err))
         },
 
         getDashboard: (req, res)=>{

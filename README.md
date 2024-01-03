@@ -21,7 +21,7 @@ npm install
 npm start server
 ```
 
-Open another terminal in the main directory of the application(my-app).  Download React packages and start the app.
+Open another terminal in the main directory of the application(my-app).  Install React packages and start the app.
 
 
 ```bash
