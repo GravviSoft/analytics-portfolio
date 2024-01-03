@@ -5,7 +5,10 @@ const sequelize = new Sequelize(CONNECTION_STRING)
 const bcrypt = require('bcrypt');
 const { Builder, Browser, By, until } = require("selenium-webdriver");
 const chrome = require('selenium-webdriver/chrome');
+<<<<<<< HEAD
 // const emailable = require("emailable")("live_cddbfa67eed613c34879");
+=======
+>>>>>>> c5f43b67d30f50f13ca1c8f804fbd481bc0e14bd
 const emailable = require("emailable")("test_6d6a830c441ad76f8b8b");
 
 module.exports = {
