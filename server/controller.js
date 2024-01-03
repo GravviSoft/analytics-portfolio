@@ -5,7 +5,7 @@ const sequelize = new Sequelize(CONNECTION_STRING)
 const bcrypt = require('bcrypt');
 const { Builder, Browser, By, until } = require("selenium-webdriver");
 const chrome = require('selenium-webdriver/chrome');
-
+const emailable = require("emailable")("test_6d6a830c441ad76f8b8b");
 
 module.exports = {
     seed: (req, res)=>{
