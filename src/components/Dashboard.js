@@ -422,7 +422,7 @@ function Dashboard(){
         const company_img = rowData.company_img
         return (
             <div className="flex align-items-center gap-2">
-                <img alt={company_img} src={company_img} className="shadow-2 border-round" style={{ width: '64px' }} />
+                <img alt={company_img} src={company_img} className="shadow-2 border-round" style={{ maxWidth: '64px', maxHeight: "64px" }} />
             </div>
         )
     };
