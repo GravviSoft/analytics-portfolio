@@ -12,7 +12,7 @@ function Navbar() {
       </a>
       <ul className="nav justify-content-end">
         <li className="nav-item-first">
-          <a href="http://localhost:5000/seed">Seed</a>
+          <a href="http://34.210.164.13:5000/seed">Seed</a>
         </li>
         <li className="nav-item-first">
           <Link to="/register">Register</Link>
