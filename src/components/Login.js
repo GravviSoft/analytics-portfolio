@@ -45,7 +45,7 @@ function Login(){
   useEffect(()=>{
     console.log(errors)
     if (Object.keys(errors).length === 0 && submitting){
-        axios.post('http://localhost:5000/login', loginData)
+        axios.post('http://34.210.164.13:5000/login', loginData)
           .then(dbResult=>{
             const { user_id, industry } = dbResult.data.userInfo
             setDataBaseMsg({msg: "Successfully Login.", color: 'success'})

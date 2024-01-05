@@ -65,7 +65,7 @@ function Register(){
 
     useEffect(() => {
       if (Object.keys(errors).length === 0 && submitting) {
-          axios.post('http://localhost:5000/register', formInfo)
+          axios.post('http://34.210.164.13:5000/register', formInfo)
           .then(dbResult=>{
             console.log(dbResult)
             setDataBaseMsg({msg: "Successfully Registered.", color: 'success'})

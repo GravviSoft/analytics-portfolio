@@ -44,7 +44,7 @@ function Selectleads(){
             selectedIndustries.map(val=> ind.push(val.industry))
             console.log(loc, ind)
             console.log({cookie: document.cookie, industies: ind, location: loc})
-            axios.post('http://localhost:5000/selectleads', {cookie: document.cookie, industry: ind, location: loc})
+            axios.post('http://34.210.164.13:5000/selectleads', {cookie: document.cookie, industry: ind, location: loc})
             .then(dbResult=>{
                 console.log(dbResult.data.user_id)
                 setDataBaseMsg({msg: "Successfully Selected Leads.", color: 'success'})

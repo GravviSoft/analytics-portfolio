@@ -240,7 +240,7 @@ function Dashboard(){
     useEffect(() => {
         if (pullingYellowPg){
             console.log(`Pulling YP:`, pullingYellowPg)
-            axios.post(`http://localhost:5000/ypscrape/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`http://34.210.164.13:5000/ypscrape/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 console.log(dbResult)
                 setPullingYellowPg(false)
@@ -262,7 +262,7 @@ function Dashboard(){
     useEffect(() => {
         if (pullingGoogle){
             console.log(`pullingGoogle:`, pullingGoogle)
-            axios.post(`http://localhost:5000/google/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`http://34.210.164.13:5000/google/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 console.log(dbResult)
                 setPullingGoogle(false)
@@ -284,7 +284,7 @@ function Dashboard(){
     useEffect(()=>{
         if (pullEmail){
             console.log(`pullingEmails:`, pullEmail)
-            axios.post(`http://localhost:5000/pullEmail/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`http://34.210.164.13:5000/pullEmail/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 setPullEmail(false)
@@ -307,7 +307,7 @@ function Dashboard(){
     useEffect(()=>{
         if (verifyEmail){
             console.log(`Verify Email:`, verifyEmail)
-            axios.post(`http://localhost:5000/verifyemail/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`http://34.210.164.13:5000/verifyemail/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 setVerifyEmail(false)
@@ -334,7 +334,7 @@ function Dashboard(){
         if (submitNewLead && Object.keys(errors).length === 0 && !editingModal){
             console.log("Submitting New Lead", newlead)
             console.log("Errors", errors)
-            axios.post(`http://localhost:5000/dashboard/${user_id}`, newlead)
+            axios.post(`http://34.210.164.13:5000/dashboard/${user_id}`, newlead)
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 closeNewLeadModal()
@@ -357,7 +357,7 @@ function Dashboard(){
         if (submitNewLead && Object.keys(errors).length === 0 && editingModal){
             console.log("Editing Lead", newlead)
             console.log("Errors", errors)
-            axios.patch(`http://localhost:5000/dashboard/${newlead.lead_id}`, newlead)
+            axios.patch(`http://34.210.164.13:5000/dashboard/${newlead.lead_id}`, newlead)
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 closeNewLeadModal()
