@@ -1,9 +1,12 @@
 import React from 'react';
 import { Link } from "react-router-dom";
 import logo from "../images/reactlogo.png"
+import { baseUrl } from '../constants/globals';
 
 
 function Navbar() {
+  const URL = `${baseUrl}:5023/seed`
+
   return (
     <nav className="navbar">
       <a className="navbar-brand" href="/public/index.html">
@@ -12,7 +15,7 @@ function Navbar() {
       </a>
       <ul className="nav justify-content-end">
         <li className="nav-item-first">
-          <a href="http://34.210.164.13:5000/seed">Seed</a>
+          <a href={URL} >Seed</a>
         </li>
         <li className="nav-item-first">
           <Link to="/register">Register</Link>

@@ -1,9 +1,7 @@
 import React from "react";
 import { Chart } from 'primereact/chart';
 
-        
-import { Card } from 'primereact/card';
-    
+            
 
 function SmallLeadchart(props){
     return(

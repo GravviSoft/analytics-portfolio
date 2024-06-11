@@ -71,6 +71,7 @@ function Smallinforectangle(props) {
         </dt>
         <dt><dt className="float-start" style={{color: "#1f2b6f"}}>{props.num}</dt><span className="float-start" style={{color: "black"}}>{props.number}</span></dt>
         <dd>{props.meaning}</dd>
+
         {props.button}
       </div>
     </dl>

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
-import {AlertButton, Button} from "./Button";
+import {Button} from "./Button";
 import axios from "axios";
 import { Password } from 'primereact/password'
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
+import { baseUrl } from '../constants/globals';
+
 
 function Login(){
 
@@ -45,7 +47,7 @@ function Login(){
   useEffect(()=>{
     console.log(errors)
     if (Object.keys(errors).length === 0 && submitting){
-        axios.post('http://34.210.164.13:5000/login', loginData)
+        axios.post(`${baseUrl}:5023/login`, loginData)
           .then(dbResult=>{
             const { user_id, industry } = dbResult.data.userInfo
             setDataBaseMsg({msg: "Successfully Login.", color: 'success'})
@@ -66,12 +68,12 @@ function Login(){
       //   // ...
       // }); // 🚩 No dependency array: re-runs after every render!
       // Object.keys(errors).length === 0 ? 
-      //   axios.post('http://localhost:5000/login', loginData)
+      //   axios.post('${baseUrl}:5023/login', loginData)
       //   .then(dbResult=>{
       //     console.log(dbResult)
       //     console.log(dbResult.data.userInfo.user_id)
-      //     document.cookie = `${dbResult.data.userInfo.user_id}; path=http://localhost:3000/selectleads`
-      //     window.location.href = "http://localhost:3000/selectleads";
+      //     document.cookie = `${dbResult.data.userInfo.user_id}; path=${baseUrl}:3000/selectleads`
+      //     window.location.href = "${baseUrl}:3000/selectleads";
       //     console.log(document.cookie)
       //   })
       //   .catch(err=> console.log(err))

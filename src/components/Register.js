@@ -1,12 +1,14 @@
 import React, {useEffect, useState} from "react";
-import {Button, AlertButton} from "./Button";
+import { Button } from "./Button";
 import axios from "axios";
-import {PasswordRequirements} from "./Infoblock"
+// import {PasswordRequirements} from "./Infoblock"
 
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { Password } from 'primereact/password';
 import { Tooltip } from 'primereact/tooltip';
+import { baseUrl } from '../constants/globals';
+
 
 function Register(){
 
@@ -65,7 +67,7 @@ function Register(){
 
     useEffect(() => {
       if (Object.keys(errors).length === 0 && submitting) {
-          axios.post('http://34.210.164.13:5000/register', formInfo)
+          axios.post(`${baseUrl}:5023/register`, formInfo)
           .then(dbResult=>{
             console.log(dbResult)
             setDataBaseMsg({msg: "Successfully Registered.", color: 'success'})

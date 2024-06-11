@@ -5,6 +5,8 @@ const sequelize = new Sequelize(CONNECTION_STRING)
 const bcrypt = require('bcrypt');
 const { Builder, Browser, By, until } = require("selenium-webdriver");
 const chrome = require('selenium-webdriver/chrome');
+const fetch = require('node-fetch');
+
 // const emailable = require("emailable")("live_cddbfa67eed613c34879");
 
 const emailable = require("emailable")("test_6d6a830c441ad76f8b8b");
@@ -90,7 +92,7 @@ module.exports = {
                 console.log('Need to register.')
                 res.status(400).send({"error": 'Need to register.'})
             } else {
-            dbPassword = dbResult[0][0].password
+            let dbPassword = dbResult[0][0].password
             let existingPass = bcrypt.compareSync(password, dbPassword)
             if (existingPass){  
                 let userInfo =  dbResult[0]
@@ -137,7 +139,7 @@ module.exports = {
                 const userIndustry = dbResult[0][0].industry
                 const userLocation = dbResult[0][0].location
 
-                for (i=0; i<userLocation.length;i++){
+                for (i=0; i<userLocation.length; i++){
                     for (j=0; j<userIndustry.length; j++){
                         const googleQ = `https://www.google.com/search?q=${userIndustry[j]} companies near ${userLocation[i]}`
                         googleQueryUrls.push(googleQ)   
@@ -432,6 +434,7 @@ module.exports = {
 
             sequelize.query(`SELECT * FROM users WHERE user_id = '${user_id}'`)
             .then(dbResult =>{
+                console.log("dbResult[0][0]", dbResult[0][0])
                 const userLocation = dbResult[0][0].location
                 const userIndustry = dbResult[0][0].industry
 
@@ -439,6 +442,7 @@ module.exports = {
                 const newInd = userIndustry.join("%|%")
 
                 sequelize.query(`SELECT * FROM leads WHERE location SIMILAR TO '%${newLoc}%' AND industry SIMILAR TO '%${newInd}%' OR leads.user_id = '${user_id}'`)
+                
                 .then(leadsResults =>{
                     sequelize.query(`SELECT industry, COUNT (*) AS industry_count FROM leads WHERE user_id = '${user_id}' GROUP BY industry`)
                     .then(pieChartData=>{
@@ -650,25 +654,40 @@ module.exports = {
                 dbResult[0].map(items =>{
                     const { email, email_verify, lead_id } = items
                     console.log(email, lead_id)
+                    
+                    // API EMAIL VERIFICATION
+                    const url = `https://disposable.debounce.io/?${email}`;
+                    const options = {method: 'GET', headers: {accept: 'application/json'}};
+
+                    fetch(url, options)
+                    .then(res => res.json())
+                    .then(json => {
+                        sequelize.query(`UPDATE leads SET email_verify = '${JSON.stringify(json)}'  WHERE lead_id = '${lead_id}'`)
+                        .then(dbResult =>{
+                            console.log(dbResult)
+                        })
+                        .catch(err => console.log(err))
+                    })
+                    .catch(err => console.error('error:' + err));
 
                     // API EMAIL VERIFICATION
                     // https://emailable.com/docs/api/#authentication
-                    function verifyTheEmail(db_email, db_lead_id){
-                        emailable.verify(db_email)
-                        .then(function (response) {
-                            // asynchronously called
-                            console.log(JSON.stringify(response))
+                    // function verifyTheEmail(db_email, db_lead_id){
+                    //     emailable.verify(db_email)
+                    //     .then(function (response) {
+                    //         // asynchronously called
+                    //         console.log(JSON.stringify(response))
                             
-                            sequelize.query(`UPDATE leads SET email_verify = '${JSON.stringify(response)}'  WHERE lead_id = '${db_lead_id}'`)
-                            .then(dbResult =>{
-                                console.log(dbResult)
-                            })
-                            .catch(err => console.log(err))
-                        })
-                        .catch(err => console.log(err))
-                    }
+                    //         sequelize.query(`UPDATE leads SET email_verify = '${JSON.stringify(response)}'  WHERE lead_id = '${db_lead_id}'`)
+                    //         .then(dbResult =>{
+                    //             console.log(dbResult)
+                    //         })
+                    //         .catch(err => console.log(err))
+                    //     })
+                    //     .catch(err => console.log(err))
+                    // }
 
-                    verifyTheEmail(db_email=email, db_lead_id=lead_id)
+                    // verifyTheEmail(db_email=email, db_lead_id=lead_id)
 
                 })
                 res.status(200).send({msg: 'Finished Pulling Emails.'})

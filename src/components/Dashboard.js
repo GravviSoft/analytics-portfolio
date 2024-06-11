@@ -12,17 +12,21 @@ import { Button as PrimeButton }  from 'primereact/button';
 import { Toolbar } from 'primereact/toolbar';
 import { Tag } from 'primereact/tag';
 import { Link } from "react-router-dom";
-import { FilterMatchMode, FilterOperator } from 'primereact/api';
+import { FilterMatchMode } from 'primereact/api';
 import { ProgressSpinner } from 'primereact/progressspinner';                
 import ModalSwitch from './Dashboardcomp/Modalswitch';
 import { getStatusNum, getStatusColor } from './helpers/swithstatus';
 import Leadchart from './Dashboardcomp/Chart'
 import { Badge } from 'primereact/badge';
+import { baseUrl } from '../constants/globals';
 
 
 function Dashboard(){
 
+    // const baseUrl = "https://440f142c.dv-mtn-capstone.pages.dev"
+    // const baseUrl = process.env.PUBLIC_URL
 
+    console.log("baseUrl", baseUrl)
     const [newlead, setNewLead] = useState({company: "",
         industry: "",
         location: "",
@@ -172,6 +176,7 @@ function Dashboard(){
             console.log(`Pulling Database Leads:`)
             axios.get(`/dashboard/${user_id}`)
                 .then(dbResult=>{
+                    console.log(dbResult.data)
                     setLeads(dbResult.data.leadInfo)
                     setTotalLeadCount(dbResult.data.leadInfo.length)
                     const { userInfo, leadInfo, industryName, industryNum, backgroundColor, hoverBackgroundColor, locationName, locationNum, locationbackgroundColor, locationhoverBackgroundColor, statusName, statusNum, statusbackgroundColor, statushoverBackgroundColor} = dbResult.data
@@ -205,7 +210,7 @@ function Dashboard(){
                     setEmailCount(emailCounter)
                     console.log("emailCounter", emailCounter);
                 })
-                .catch(dbError=>console.log(dbError))
+                .catch(dbError=>console.log(dbError.data))
 
             setHitDatabase(false)
             initFilters();
@@ -240,7 +245,7 @@ function Dashboard(){
     useEffect(() => {
         if (pullingYellowPg){
             console.log(`Pulling YP:`, pullingYellowPg)
-            axios.post(`http://34.210.164.13:5000/ypscrape/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`${baseUrl}:5023/ypscrape/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 console.log(dbResult)
                 setPullingYellowPg(false)
@@ -262,7 +267,7 @@ function Dashboard(){
     useEffect(() => {
         if (pullingGoogle){
             console.log(`pullingGoogle:`, pullingGoogle)
-            axios.post(`http://34.210.164.13:5000/google/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`${baseUrl}:5023/google/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 console.log(dbResult)
                 setPullingGoogle(false)
@@ -284,12 +289,15 @@ function Dashboard(){
     useEffect(()=>{
         if (pullEmail){
             console.log(`pullingEmails:`, pullEmail)
-            axios.post(`http://34.210.164.13:5000/pullEmail/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`${baseUrl}:5023/pullEmail/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 setPullEmail(false)
                 toast.current.show({ severity: 'success', summary: 'Successful', detail: msg, life: 3000 });
                 setHitDatabase(true)
+                setTimeout(function(){
+                    setHitDatabase(true)
+                }, 1500);
             })
             .catch(dbError=>{
                 setPullEmail(false)
@@ -307,7 +315,7 @@ function Dashboard(){
     useEffect(()=>{
         if (verifyEmail){
             console.log(`Verify Email:`, verifyEmail)
-            axios.post(`http://34.210.164.13:5000/verifyemail/${user_id}`, {headlessBrowser:  headlessBrowser})
+            axios.post(`${baseUrl}:5023/verifyemail/${user_id}`, {headlessBrowser:  headlessBrowser})
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 setVerifyEmail(false)
@@ -334,7 +342,7 @@ function Dashboard(){
         if (submitNewLead && Object.keys(errors).length === 0 && !editingModal){
             console.log("Submitting New Lead", newlead)
             console.log("Errors", errors)
-            axios.post(`http://34.210.164.13:5000/dashboard/${user_id}`, newlead)
+            axios.post(`${baseUrl}:5023/dashboard/${user_id}`, newlead)
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 closeNewLeadModal()
@@ -357,7 +365,7 @@ function Dashboard(){
         if (submitNewLead && Object.keys(errors).length === 0 && editingModal){
             console.log("Editing Lead", newlead)
             console.log("Errors", errors)
-            axios.patch(`http://34.210.164.13:5000/dashboard/${newlead.lead_id}`, newlead)
+            axios.patch(`${baseUrl}:5023/dashboard/${newlead.lead_id}`, newlead)
             .then(dbResult=>{
                 const { msg } = dbResult.data
                 closeNewLeadModal()
@@ -604,7 +612,7 @@ function Dashboard(){
                 const { state, score } = rowData.email_verify 
                 return  <PrimeButton icon={<i className="pi pi-verified p-overlay-badge mr-4" style={{ fontSize: '1.5rem' }}><Badge severity={state === 'deliverable' ? 'success': 'danger'} value={score}></Badge></i>} size="small" label={rowData.email} rounded text severity={state === 'deliverable' ? 'success': 'danger'} tooltip={JSON.stringify(rowData.email_verify,null,'\t')} tooltipOptions={{ position: 'top', mouseTrack: true, mouseTrackTop: 15 }} /> 
             }
-        // return rowData.email
+        return rowData.email
     }
 
     function setLeadStatusFunc(value){
@@ -623,8 +631,9 @@ function Dashboard(){
             <Toast ref={toast} />
             <div className="sideby"> 
                 <Smallinforectangle name="Lead Count" number={totalLeadCount} />
-                <Smallinforectangle name="Industries" emoji="fa fa-edit float-end"  meaning={userInformation.industry}/>
-                <Smallinforectangle name="Locations" emoji="fa fa-edit float-end" meaning={userInformation.location}/>
+                <Smallinforectangle name="Industries" emoji="fa fa-edit float-end"  meaning={"Roofing"}/>
+                {/* meaning={userInformation.industry.substring(0,26) + '...' }/> */}
+                <Smallinforectangle name="Locations" emoji="fa fa-edit float-end" meaning={"Utah"}/>
                 <Smallinforectangle name="Yellow Pages" button={pullingYellowPg ? <ProgressSpinner style={{width: '30px', height: '30px'}} strokeWidth="8" fill="var(--surface-ground)" animationDuration="1s" />  : <PrimeButton icon="pi pi-user" size="small" label='Pull Leads' rounded text raised severity="info" aria-label="User" onClick={()=> {
                         setFunc({name: Scrapeyp})
                         setVisibleHeadlessDialouge(true)
@@ -642,14 +651,16 @@ function Dashboard(){
                     } verifyBool={verifyEmail} emailVerify={emailVerify} /> }
                 <Toolbar className="mb-4" start={leftToolbarTemplate} end={rightToolbarTemplate}></Toolbar>
 
-                <DataTable ref={dt} sortField="lead_id" sortOrder={-1}  value={leads} stripedRows paginator rows={5} rowsPerPageOptions={[5, 10, 25, 50]}size="large" editMode="row" dataKey="lead_id" onRowEditComplete={onRowEditComplete} selection={selectedLead}  onSelectionChange={(e) => setSelectedLead(e.value)}  filters={filters} globalFilterFields={['company', 'industry', 'location', 'phone', 'email']} header={header} emptyMessage="No leads found.">
+                <DataTable ref={dt} sortField="lead_id" sortOrder={-1}  value={leads} stripedRows paginator rows={5} rowsPerPageOptions={[5, 10, 25, 50, 500]}size="large" editMode="row" dataKey="lead_id" onRowEditComplete={onRowEditComplete} selection={selectedLead}  onSelectionChange={(e) => setSelectedLead(e.value)}  filters={filters} globalFilterFields={['company', 'industry', 'location', 'phone', 'email']} header={header} emptyMessage="No leads found.">
                     <Column selectionMode="multiple" style={{ width: '1%' }} exportable={false}></Column>
+                    <Column field="lead_id" style={{ width: '0%' }}  header="ID"></Column>
+
                     <Column body={companyImgBodyTemplate}  header="Img" style={{ width: '5%' }}></Column>
                     <Column body={companyBodyTemplate} field='company' style={{ width: '15%' }} editor={(options) => textEditor(options)}  header="Company"></Column>
                     <Column field="industry" style={{ width: '12%' }} editor={(options) => textEditor(options)}  header="Industry"></Column>
                     <Column field="location" style={{ width: '9%' }} editor={(options) => textEditor(options)}  header="Location"></Column>
                     <Column field="phone" style={{whiteSpace: "nowrap"}} editor={(options) => textEditor(options)}  header="Phone"></Column>
-                    <Column body={emailBody} editor={(options) => textEditor(options)}  header="Email"></Column>
+                    <Column body={emailBody} field="email" editor={(options) => textEditor(options)}  header="Email"></Column>
                     <Column field="status" style={{whiteSpace: "nowrap"}} body={tagBodyTemp} header="Status" ></Column>
                     <Column body={urlBodyTemplate} header="Url"></Column>
                     <Column style={{whiteSpace: "nowrap"}} body={actionBodyTemplate} exportable={false}></Column>
