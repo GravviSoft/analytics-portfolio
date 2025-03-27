@@ -44,25 +44,52 @@ function Login(){
 
   }
 
-  useEffect(()=>{
-    console.log(errors)
-    if (Object.keys(errors).length === 0 && submitting){
-        axios.post(`${baseUrl}:5023/login`, loginData)
-          .then(dbResult=>{
-            const { user_id, industry } = dbResult.data.userInfo
-            setDataBaseMsg({msg: "Successfully Login.", color: 'success'})
-            industry === null ? window.location.href = "/selectleads" : window.location.href = "/dashboard"
-            document.cookie = `${user_id}; path=/selectleads`
-            document.cookie = `${user_id}; path=/dashboard`
-            console.log(document.cookie)
-          })
-          .catch(dbErr=> {
-            const { error } = dbErr.response.data
-            setDataBaseMsg({msg: error, color: 'error'})
-              }
-          )}
+  // useEffect(()=>{
+  //   console.log(errors)
+  //   if (Object.keys(errors).length === 0 && submitting){
+  //       axios.post(`${baseUrl}:5023/login`, loginData)
+  //         .then(dbResult=>{
+  //           const { user_id, industry } = dbResult.data.userInfo
+  //           setDataBaseMsg({msg: "Successfully Login.", color: 'success'})
+  //           industry === null ? window.location.href = "/selectleads" : window.location.href = "/dashboard"
+  //           document.cookie = `${user_id}; path=/selectleads`
+  //           document.cookie = `${user_id}; path=/dashboard`
+  //           console.log(document.cookie)
+  //         })
+  //         .catch(dbErr=> {
+  //           const { error } = dbErr.response.data
+  //           setDataBaseMsg({msg: error, color: 'error'})
+  //             }
+  //         )}
 
-  }, [errors])
+  // }, [errors])
+
+  
+const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;  // Ensure this is set in .env.local
+
+useEffect(() => {
+    console.log(errors);
+    if (Object.keys(errors).length === 0 && submitting) {
+        axios.post(`${baseUrl}/login`, loginData, { withCredentials: true })  // Ensure credentials are sent
+          .then(dbResult => {
+            const { user_id, industry } = dbResult.data.userInfo;
+            setDataBaseMsg({ msg: "Successfully Logged In.", color: "success" });
+
+            // Save user ID in cookies (securely)
+            document.cookie = `user_id=${user_id}; path=/; secure; samesite=strict`;
+
+            // Redirect using Next.js router
+            industry === null ? router.push("/selectleads") : router.push("/dashboard");
+
+            console.log(document.cookie);
+          })
+          .catch(dbErr => {
+            if (dbErr.response && dbErr.response.data) {
+              setDataBaseMsg({ msg: dbErr.response.data.error, color: "error" });
+            }
+          });
+    }
+}, [errors]);
 
       // useEffect(() => {
       //   // ...
