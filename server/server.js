@@ -7,7 +7,11 @@ const { PORT_NUM } = process.env
 
 const app = express();
 
-app.use(cors())
+app.use(cors({
+  origin: "https://dv-mtn-capstone.vercel.app",
+  credentials: true
+}));
+
 app.use(express.json())
 
 const {seed, registerFunc, loginFunc, selectLeadsFunc, scrapeGoogleFunc, scrapeYPFunc, getDashboard, patchDashboard, postDashboard, getLead, postLead, patchLead, deleteLead, deleteDashboard, emailPull, emailVerify, getLeadNote, patchNote} = require('./controller.js');
