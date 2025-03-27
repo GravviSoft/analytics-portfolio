@@ -1,5 +1,5 @@
 // const baseUrl = 'http://localhost'
-const baseUrl = 'https://dv-mtn-capstone-ejqocnr57-beau-enslows-projects.vercel.app'
+const baseUrl = 'https://dv-mtn-capstone.vercel.app'
 const themeDefault = 'dark'
 const namesOfModes = ['dark', 'moonlight', 'eclipse', 'light']
 
