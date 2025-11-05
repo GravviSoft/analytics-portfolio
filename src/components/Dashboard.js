@@ -4,6 +4,7 @@ import { Smallinforectangle } from './Infoblock';
 import axios from 'axios';
 import EmailSettings from "./Dashboardcomp/Emailsettings"
 import ModalNewLead from "./Dashboardcomp/Modalnewlead"
+import ModalCreateDriveFolder from './Dashboardcomp/Googledrive';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { InputText } from 'primereact/inputtext';
@@ -77,8 +78,795 @@ function Dashboard(){
     const toast = useRef(null);
     const dt = useRef(null);
 
-    let x = document.cookie
-    let user_id = x.split(";")[0]
+    function getCookie(name) {
+  return document.cookie
+    .split('; ')
+    .find(row => row.startsWith(name + '='))
+    ?.split('=')[1] || null;
+}
+    // let x = document.cookie
+    // let user_id = x.split(";")[0]
+    const user_id = getCookie('user_id'); // returns the value or null
+    if (!user_id) {
+    console.warn('No user_id cookie found.');
+    // Optionally: redirect to login or show a message
+    // return;
+    }
+
+
+
+        /* =============================
+    // GOOGLE DRIVE CODE TO CREATE FOLDERS
+    ============================= */
+    // GOOGLE DRIVE CODE TO CREATE FOLDERS
+    const [folderDlgOpen, setFolderDlgOpen] = useState(false);
+    const [folderName, setFolderName] = useState("");
+    const [rowForFolder, setRowForFolder] = useState(null);
+    const [submitAttempt, setSubmitAttempt] = useState(false);
+
+    const API_KEY = "AIzaSyDEfijnvr2Ob1ZzaYWaZ1CrkcShZyJzSUQ";
+    const CLIENT_ID = "1035244904865-u1qq4t1g8oonht00pkbmrbfds0mivsvb.apps.googleusercontent.com";
+/* ---------- gapi loader + init (JS ONLY) ---------- */
+    // const API_KEY = "YOUR_API_KEY";
+    /* ===== GIS + GAPI BOOTSTRAP (JS only) ===== */
+    const DISCOVERY_DOCS = [
+    "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+    "https://sheets.googleapis.com/$discovery/rest?version=v4",
+    "https://docs.googleapis.com/$discovery/rest?version=v1",
+    ];
+    const SCOPES = [
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/documents",
+    ].join(" ");
+
+    let bootPromise = null;
+    let tokenClient = null;
+    let accessToken = null;
+
+    function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        s.defer = true;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("Failed to load script: " + src));
+        document.head.appendChild(s);
+    });
+    }
+
+    /** Boot both gapi (client) and GIS (OAuth) */
+    async function bootApis() {
+    if (bootPromise) return bootPromise;
+
+    bootPromise = (async () => {
+        // 1) Load scripts
+        await loadScriptOnce("https://apis.google.com/js/api.js");
+        await loadScriptOnce("https://accounts.google.com/gsi/client");
+
+        // 2) Init gapi client (discovery only; OAuth handled by GIS)
+        await new Promise((res) => window.gapi.load("client", res));
+        await window.gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: DISCOVERY_DOCS,
+        });
+
+        // 3) Init GIS token client
+        tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,      // space-separated scopes
+        // callback is set dynamically when requesting tokens
+        callback: () => {},
+        });
+    })();
+
+    return bootPromise;
+    }
+
+    /** Ask GIS for an access token (must be called from a user gesture) */
+    function requestAccessToken({ prompt = "consent" } = {}) {
+    return new Promise((resolve, reject) => {
+        tokenClient.callback = (resp) => {
+        if (resp.error) {
+            reject(resp);
+            return;
+        }
+        accessToken = resp.access_token;
+        resolve(accessToken);
+        };
+        try {
+        tokenClient.requestAccessToken({ prompt }); // "consent" first time; "" for silent refresh
+        } catch (e) {
+        reject(e);
+        }
+    });
+    }
+
+    /** Ensure we’re booted and authorized; sets token on gapi.client */
+    async function ensureAuthorized() {
+    await bootApis();
+    if (!accessToken) {
+        // first time: force the consent prompt (needs to run from a click)
+        await requestAccessToken({ prompt: "consent" });
+    }
+    window.gapi.client.setToken({ access_token: accessToken });
+    }
+
+
+    /* =============================
+    DRIVE/SHEETS/DOCS HELPERS
+    ============================= */
+
+    // ---- error helper (put at top of Dashboard.js) ----
+    function errMessage(err) {
+    if (err && err.result && err.result.error) return JSON.stringify(err.result.error, null, 2);
+    if (err && err.error) return JSON.stringify(err.error, null, 2);
+    return String(err);
+    }
+
+    // Create a Drive folder (optionally inside a parent)
+    async function createDriveFolder(name, parentId) {
+    try {
+        const gapi = window.gapi;
+        const resource = { name, mimeType: "application/vnd.google-apps.folder" };
+        if (parentId) resource.parents = [parentId];
+
+        const res = await gapi.client.drive.files.create({
+        resource,
+        fields: "id,name,webViewLink,parents",
+        });
+        const out = res.result || {};
+        return { id: out.id, name: out.name, webViewLink: out.webViewLink };
+    } catch (err) {
+        console.error("createDriveFolder failed:", errMessage(err));
+        throw err;
+    }
+    }
+
+    // Move a file into a folder (Drive v3 best practice: add new parent, remove previous)
+    // Move file to a folder (unchanged helper)
+    async function moveFileToFolder(fileId, newParentId) {
+    const gapi = window.gapi;
+    const getRes = await gapi.client.drive.files.get({ fileId, fields: "parents" });
+    const previousParents = (getRes.result.parents || []).join(",");
+    await gapi.client.drive.files.update({
+        fileId,
+        addParents: newParentId,
+        removeParents: previousParents || undefined,
+        fields: "id, parents",
+    });
+    }
+
+    // ---- SHEET: create with title + force-rename fallback
+// ---- SHEET: create with title, set title via Sheets API, force-rename via Drive as fallback
+    async function createSheetInFolder(folderId, row, fileName) {
+    const gapi = window.gapi;
+
+    // 1) Create (pass a title, but we won't rely on it)
+    const createRes = await gapi.client.sheets.spreadsheets.create({
+        properties: { title: fileName },
+    });
+    const spreadsheetId = createRes.result.spreadsheetId;
+
+    // 2) Move to folder
+    await moveFileToFolder(spreadsheetId, folderId);
+
+    // 3) Explicitly set the spreadsheet title via Sheets API (most reliable)
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+        requests: [
+            {
+            updateSpreadsheetProperties: {
+                properties: { title: fileName },
+                fields: "title",
+            },
+            },
+        ],
+        },
+    });
+
+    // 4) As an extra safety, rename via Drive metadata too (handles any residual cache)
+    await gapi.client.drive.files.update({
+        fileId: spreadsheetId,
+        resource: { name: fileName },
+        fields: "id, name",
+    });
+
+    // 5) Write your values & basic formatting
+    const values = [
+        ["Channel", "Subs", "Month Views", "Rev Last Mon", "RPM"],
+        [
+        row?.channel_name ?? "",
+        row?.sub_count ?? "",
+        row?.views_last_month ?? "",
+        row?.revenue_last_month ?? "",
+        row?.rpm ?? "",
+        ],
+    ];
+
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: "A1:E2",
+        valueInputOption: "RAW",
+        resource: { values },
+    });
+
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+        requests: [
+            {
+            repeatCell: {
+                range: { sheetId: 0, startRowIndex: 0, endRowIndex: 1 },
+                cell: { userEnteredFormat: { textFormat: { bold: true } } },
+                fields: "userEnteredFormat.textFormat.bold",
+            },
+            },
+            {
+            autoResizeDimensions: {
+                dimensions: { sheetId: 0, dimension: "COLUMNS", startIndex: 0, endIndex: 5 },
+            },
+            },
+        ],
+        },
+    });
+
+    // optional: read back the name to verify
+    const meta = await gapi.client.drive.files.get({ fileId: spreadsheetId, fields: "id, name" });
+    console.log("Sheet title now:", meta.result.name);
+
+    return spreadsheetId;
+    }
+
+
+
+    // ---- DOC: create with title + force-rename fallback
+    async function createDocInFolder(folderId, row, fileName) {
+    const gapi = window.gapi;
+
+    // 1) Create with the title you want
+    const docRes = await gapi.client.docs.documents.create({ title: fileName });
+    const documentId = docRes.result.documentId;
+
+    // 2) Move it into the folder
+    await moveFileToFolder(documentId, folderId);
+
+    // 3) Force name (fallback) in case it shows as Untitled
+    await gapi.client.drive.files.update({
+        fileId: documentId,
+        resource: { name:fileName  },
+        fields: "id, name",
+    });
+
+    // 4) Insert content (unchanged)
+    const intro =
+        `Channel: ${row?.channel_name || ""}\n` +
+        `Subs: ${row?.sub_count || ""}\n` +
+        `Monthly Views: ${row?.views_last_month || ""}\n` +
+        `Revenue Last Month: ${row?.revenue_last_month || ""}\n\nNotes:\n`;
+
+    await gapi.client.docs.documents.batchUpdate({
+        documentId,
+        resource: { requests: [{ insertText: { text: intro, location: { index: 1 } } }] },
+    });
+
+    return documentId;
+    }
+    // ---- constants for naming
+
+    function slugify(s) {
+    return (s || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "");
+    }
+
+    function today() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(d.getMonth()+1)}${pad(d.getDate())}${d.getFullYear()}`;
+    }
+
+    // Create (or find) the global "Channels" root
+    async function ensureChannelsRoot() {
+    const gapi = window.gapi;
+    // search for folder named "Channels" in My Drive
+    const q = `mimeType='application/vnd.google-apps.folder' and name='Channels' and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: "files(id,name)" });
+    if (res.result.files && res.result.files.length) return res.result.files[0];
+
+    // create it
+    const create = await gapi.client.drive.files.create({
+        resource: { name: "Channels", mimeType: "application/vnd.google-apps.folder" },
+        fields: "id,name,webViewLink",
+    });
+    return create.result;
+    }
+
+
+    async function ensureTrackerHeaders(spreadsheetId) {
+        const gapi = window.gapi;
+        const res = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: "A1:O1",
+        });
+        const haveHeaders = res.result.values && res.result.values[0] && res.result.values[0].length > 0;
+        if (haveHeaders) return;
+
+        const headers = [[
+            "project_id","slug","title","status","publish_date",
+            "channel_id","channel_folder_id","project_folder_id",
+            "script_doc_id","thumb_file_id","video_file_id",
+            "brief_doc_id","project_sheet_id","youtube_video_id","sheet_row_index"
+        ]];
+
+        await gapi.client.sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: "A1:O1",
+            valueInputOption: "RAW",
+            resource: { values: headers },
+        });
+    }
+    // Create (or find) a channel root folder + tracker sheet
+// Create (or find) a channel root folder + tracker sheet using ONLY the name you pass in
+    async function ensureChannelRootAndTracker(channelRow, fileName) {
+    const gapi = window.gapi;
+    const channelsRoot = await ensureChannelsRoot();
+
+    // 1) Folder name from your input
+    const channelSlug = slugify(fileName);
+    const folderName = channelSlug; // or `${channelSlug}_${channelRow.channel_id}` if you want uniqueness
+
+    // 2) Find/create channel folder under Channels root
+    const q = `'${channelsRoot.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='${folderName}' and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: "files(id,name)" });
+    let channelFolder = (res.result.files || [])[0];
+    if (!channelFolder) {
+        const created = await gapi.client.drive.files.create({
+        resource: {
+            name: folderName,
+            mimeType: "application/vnd.google-apps.folder",
+            parents: [channelsRoot.id],
+            appProperties: { channel_id: String(channelRow.channel_id) }, // optional metadata
+        },
+        fields: "id,name,webViewLink",
+        });
+        channelFolder = created.result;
+    }
+
+    // 3) Ensure Projects subfolder
+    const qProj = `'${channelFolder.id}' in parents and mimeType='application/vnd.google-apps.folder' and name='Projects' and trashed=false`;
+    const projRes = await gapi.client.drive.files.list({ q: qProj, fields: "files(id,name)" });
+    let projectsFolder = (projRes.result.files || [])[0];
+    if (!projectsFolder) {
+        const created = await gapi.client.drive.files.create({
+        resource: { name: "Projects", mimeType: "application/vnd.google-apps.folder", parents: [channelFolder.id] },
+        fields: "id,name",
+        });
+        projectsFolder = created.result;
+    }
+
+    // 4) Ensure tracker sheet exists
+    const trackerName = "_Channel_Tracker";
+    const qSheet = `'${channelFolder.id}' in parents and mimeType='application/vnd.google-apps.spreadsheet' and name='${trackerName}' and trashed=false`;
+    const sheetRes = await gapi.client.drive.files.list({ q: qSheet, fields: "files(id,name)" });
+    let trackerSheetId;
+    if (sheetRes.result.files && sheetRes.result.files.length) {
+        trackerSheetId = sheetRes.result.files[0].id;
+    } else {
+        const createRes = await gapi.client.sheets.spreadsheets.create({ properties: { title: trackerName } });
+        trackerSheetId = createRes.result.spreadsheetId;
+        await moveFileToFolder(trackerSheetId, channelFolder.id);
+    }
+
+    // 5) NOW add headers (trackerSheetId is known)
+    await ensureTrackerHeaders(trackerSheetId);
+
+    return {
+        channelsRootId: channelsRoot.id,
+        channelFolderId: channelFolder.id,
+        projectsFolderId: projectsFolder.id,
+        trackerSheetId,
+    };
+    }
+
+    //Google sheets append rows with correct columns
+    async function appendTrackerRow(spreadsheetId, row) {
+    const gapi = window.gapi;
+    // row must be an array of length 15 (A..O)
+    const res = await gapi.client.sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: "A:O",
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        resource: { values: [row] },
+    });
+
+    // Capture the row index Google wrote to, so we can update later
+    const updatedRange = res.result.updates.updatedRange; // e.g., "Sheet1!A2:O2"
+    const rowIndex = parseInt(updatedRange.split("!")[1].split(":")[0].match(/\d+/)[0], 10);
+
+    // Write the row index into column O
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `O${rowIndex}`,
+        valueInputOption: "RAW",
+        resource: { values: [[rowIndex]] },
+    });
+
+    return rowIndex;
+    }
+    // Ensure status buckets under Projects
+    async function ensureProjectBuckets(projectsFolderId) {
+    const gapi = window.gapi;
+    const needed = ["0_Current", "1_Queue", "9_Archive"];
+    const res = await gapi.client.drive.files.list({
+        q: `'${projectsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: "files(id,name)",
+    });
+    const byName = Object.fromEntries((res.result.files || []).map(f => [f.name, f.id]));
+    const out = { currentId: byName["0_Current"], queueId: byName["1_Queue"], archiveId: byName["9_Archive"] };
+
+    for (const name of needed) {
+        if (!byName[name]) {
+        const created = await gapi.client.drive.files.create({
+            resource: { name, mimeType: "application/vnd.google-apps.folder", parents: [projectsFolderId] },
+            fields: "id,name",
+        });
+        out[name === "0_Current" ? "currentId" : name === "1_Queue" ? "queueId" : "archiveId"] = created.result.id;
+        }
+    }
+    return out;
+    }
+
+    // Move a project folder to a bucket (Queue/Archive)
+    async function moveProjectToBucket(projectFolderId, bucketFolderId) {
+    const gapi = window.gapi;
+    const meta = await gapi.client.drive.files.get({ fileId: projectFolderId, fields: "parents" });
+    const previousParents = (meta.result.parents || []).join(",");
+    await gapi.client.drive.files.update({
+        fileId: projectFolderId,
+        addParents: bucketFolderId,
+        removeParents: previousParents || undefined,
+        fields: "id,parents",
+    });
+    }
+
+    // Create or refresh a CURRENT shortcut for a project
+    async function upsertCurrentShortcut(projectsCurrentFolderId, projectFolderId, projectName) {
+    const gapi = window.gapi;
+    // Try to find existing shortcut pointing to this project
+    const q = `'${projectsCurrentFolderId}' in parents and mimeType='application/vnd.google-apps.shortcut' and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: "files(id,name,shortcutDetails)" });
+    const existing = (res.result.files || []).find(f => f.shortcutDetails && f.shortcutDetails.targetId === projectFolderId);
+
+    const shortcutName = `CURRENT — ${projectName}`;
+    if (existing) {
+        // make sure name is up to date
+        if (existing.name !== shortcutName) {
+        await gapi.client.drive.files.update({ fileId: existing.id, resource: { name: shortcutName }, fields: "id" });
+        }
+        return existing.id;
+    }
+    // create new shortcut
+    const created = await gapi.client.drive.files.create({
+        resource: {
+        name: shortcutName,
+        mimeType: "application/vnd.google-apps.shortcut",
+        parents: [projectsCurrentFolderId],
+        shortcutDetails: { targetId: projectFolderId },
+        },
+        fields: "id",
+    });
+    return created.result.id;
+    }
+
+    // Remove ALL shortcuts in 0_Current (so only one current project shows)
+    async function clearCurrentShortcuts(projectsCurrentFolderId) {
+    const gapi = window.gapi;
+    const q = `'${projectsCurrentFolderId}' in parents and mimeType='application/vnd.google-apps.shortcut' and trashed=false`;
+    const res = await gapi.client.drive.files.list({ q, fields: "files(id)" });
+    for (const f of (res.result.files || [])) {
+        await gapi.client.drive.files.update({
+        fileId: f.id,
+        resource: { trashed: true },
+        fields: "id",
+        });
+    }
+    }
+
+
+// Create a new project under a channel
+// Create one project under a channel and append a tracker row
+// baseName = the name you typed in the dialog (used for titles)
+// Create one project under a channel and append a tracker row
+    async function createProject(channelRow, baseName) {
+    const gapi = window.gapi;
+
+    // Get (or create) channel containers and tracker (channel folder name comes from baseName)
+    const { projectsFolderId, trackerSheetId, channelFolderId } =
+        await ensureChannelRootAndTracker(channelRow, baseName);
+
+    // Deterministic project id / folder name
+    const slug = slugify(baseName);
+    const projectId = `${today()}_${slug}`;
+    const projectFolderName = projectId;
+
+    // Create project folder with metadata
+    const proj = await gapi.client.drive.files.create({
+        resource: {
+        name: projectFolderName,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [projectsFolderId],
+        appProperties: {
+            channel_id: String(channelRow.channel_id),
+            project_id: projectId,
+            slug
+        },
+        },
+        fields: "id,name",
+    });
+
+    // Subfolders
+    const makeSub = async (name) => {
+        const f = await gapi.client.drive.files.create({
+        resource: { name, mimeType: "application/vnd.google-apps.folder", parents: [proj.result.id] },
+        fields: "id,name",
+        });
+        return f.result.id;
+    };
+    const scriptFolderId = await makeSub("01_Script");
+    const thumbFolderId  = await makeSub("02_Thumbnail");
+    const videoFolderId  = await makeSub("03_Video");
+    await makeSub("04_Assets");
+
+    // Ensure status buckets and put the new project into 1_Queue
+    const { currentId, queueId, archiveId } = await ensureProjectBuckets(projectsFolderId);
+    await moveProjectToBucket(proj.result.id, queueId);
+
+    // ✅ Make this the ONLY "current" project for freelancers
+    await clearCurrentShortcuts(currentId);                                     // remove old CURRENT shortcuts
+    await upsertCurrentShortcut(currentId, proj.result.id, projectFolderName);  // add CURRENT — <project>
+
+    // Brief Doc (in Script folder) and per-project Sheet (in project root)
+    const briefDocId = await createDocInFolder(scriptFolderId, channelRow, baseName);          // title = baseName
+    const sheetId    = await createSheetInFolder(proj.result.id, channelRow, `${baseName} — Sheet`);
+
+    // Append tracker row (A..O must match your headers)
+    // A project_id | B slug | C title | D status | E publish_date
+    // F channel_id | G channel_folder_id | H project_folder_id
+    // I script_doc_id | J thumb_file_id | K video_file_id
+    // L brief_doc_id | M project_sheet_id | N youtube_video_id | O sheet_row_index
+    const rowValues = [
+        projectId,               // A
+        slug,                    // B
+        baseName,                // C
+        "New",                   // D
+        "",                      // E
+        channelRow.channel_id,   // F
+        channelFolderId,         // G
+        proj.result.id,          // H
+        briefDocId,              // I
+        "",                      // J (will be auto-filled later)
+        "",                      // K (will be auto-filled later)
+        briefDocId,              // L
+        sheetId,                 // M
+        "",                      // N
+        ""                       // O (appendTrackerRow will set)
+    ];
+    const sheetRowIndex = await appendTrackerRow(trackerSheetId, rowValues);
+
+    return {
+        projectId,
+        projectFolderId: proj.result.id,
+        scriptFolderId,
+        thumbFolderId,
+        videoFolderId,
+        briefDocId,
+        sheetId,
+        trackerSheetId,
+        sheetRowIndex,
+        buckets: { currentId, queueId, archiveId },
+    };
+    }
+
+
+    // async function createProject(channelRow, baseName) {
+    // const gapi = window.gapi;
+    // const { projectsFolderId, trackerSheetId, channelFolderId } = await ensureChannelRootAndTracker(channelRow, baseName);
+
+    // const slug = slugify(baseName);
+    // const projectId = `${today()}_${slug}`;
+    // const projectFolderName = projectId;
+
+    // // make project folder
+    // const proj = await gapi.client.drive.files.create({
+    //     resource: {
+    //     name: projectFolderName,
+    //     mimeType: "application/vnd.google-apps.folder",
+    //     parents: [projectsFolderId],
+    //     appProperties: { channel_id: String(channelRow.channel_id), project_id: projectId, slug },
+    //     },
+    //     fields: "id,name",
+    // });
+
+    // // subfolders
+    // const makeSub = async (name) => {
+    //     const f = await gapi.client.drive.files.create({
+    //     resource: { name, mimeType: "application/vnd.google-apps.folder", parents: [proj.result.id] },
+    //     fields: "id,name",
+    //     });
+    //     return f.result.id;
+    // };
+    // const scriptFolderId   = await makeSub("01_Script");
+    // const thumbFolderId    = await makeSub("02_Thumbnail");
+    // const videoFolderId    = await makeSub("03_Video");
+    // await makeSub("04_Assets");
+
+    // // create Doc brief in Script folder
+    // const briefTitle = baseName; // or `${baseName} — Brief`
+    // const docId = await createDocInFolder(scriptFolderId, channelRow, briefTitle);
+
+    // // optional: create a per-project sheet in the project folder
+    // const sheetTitle = `${baseName} — Sheet`;
+    // const sheetId = await createSheetInFolder(proj.result.id, channelRow, sheetTitle); // your improved function
+
+    // // write a row in tracker
+    // const values = [[
+    //     projectId, slug, baseName, "", "", "", "New",
+    //     channelRow.channel_id, channelFolderId, proj.result.id,
+    //     docId, "", "", docId, ""
+    // ]];
+    // await gapi.client.sheets.spreadsheets.values.append({
+    //     spreadsheetId: trackerSheetId,
+    //     range: "A:A",
+    //     valueInputOption: "RAW",
+    //     insertDataOption: "INSERT_ROWS",
+    //     resource: { values },
+    // });
+
+    // // share project folder with your freelancer group(s) (set your group email)
+    // // await gapi.client.drive.permissions.create({ fileId: proj.result.id, resource: { role: "writer", type: "group", emailAddress: "thumbs-team@yourdomain.com" }, sendNotificationEmail: false });
+
+    // return {
+    //     projectId,
+    //     projectFolderId: proj.result.id,
+    //     scriptFolderId,
+    //     thumbFolderId,
+    //     videoFolderId,
+    //     briefDocId: docId,
+    //     sheetId
+    // };
+    // }
+
+
+
+    const openFolderDialog = (row) => {
+        setRowForFolder(row);
+        setFolderName(row?.channel_name ?? "New Folder");
+        setFolderDlgOpen(true);
+    };
+    // open dialog
+
+    // close dialog
+    const closeFolderDialog = () => {
+    setFolderDlgOpen(false);
+    setSubmitAttempt(false);                 // reset when closing
+    };
+
+
+    const handleTestSubmit = () => {
+    console.log("TEST — folder name:", folderName, "row:", rowForFolder);
+    toast.current?.show({
+        severity: "success",
+        summary: "Form works",
+        detail: `You entered: "${folderName}"`,
+        life: 2500,
+    });
+    setFolderDlgOpen(false);
+    };
+
+    const driveButtonBody = (rowData) => (
+        <PrimeButton
+        label="Create"
+        icon="pi pi-folder"
+        size="small"
+        onClick={() => {
+            setRowForFolder(rowData);
+            setFolderName(rowData?.channel_name || "New Folder");
+            setSubmitAttempt(false);
+            setFolderDlgOpen(true);
+        }}
+        className="p-button-sm"
+        />
+    );
+
+
+    // submit from modal
+    const handleCreateAll = async () => {
+        setSubmitAttempt(true);
+        const base = (folderName || "").trim();
+        if (!base) return;
+
+        try {
+            await ensureAuthorized();
+
+            // NEW: create a full project for this channel row
+            const {
+            projectId,
+            projectFolderId,
+            scriptFolderId,
+            thumbFolderId,
+            videoFolderId,
+            briefDocId,
+            sheetId,
+            } = await createProject(rowForFolder, base);
+
+            console.log("Project created:", {
+            projectId, projectFolderId, scriptFolderId, thumbFolderId, videoFolderId, briefDocId, sheetId
+            });
+
+            toast.current?.show({
+            severity: "success",
+            summary: "Project ready",
+            detail: `Folders & docs created for "${base}"`,
+            life: 3000,
+            });
+
+            setFolderDlgOpen(false);
+        } catch (err) {
+            const msg = errMessage(err);
+            console.error("Drive error:", msg, err);
+            toast.current?.show({ severity: "error", summary: "Drive error", detail: msg, life: 6000 });
+        }
+    };
+
+    // const handleCreateAll = async () => {
+    //     setSubmitAttempt(true);
+    //     const base = (folderName || "").trim();
+    //     if (!base) return;
+
+    //     try {
+    //         await ensureAuthorized();                 // GIS auth
+
+    //         // 1) create the folder named exactly as typed
+    //         const folder = await createDriveFolder(base);
+
+    //         // 2) choose file titles (use base, or add suffixes)
+    //         const sheetTitle = `${base} — Sheet`;     // or just: base
+    //         const docTitle   = `${base} — Summary`;   // or just: base
+
+    //         // 3) pass the titles into the helpers
+    //         const sheetId = await createSheetInFolder(folder.id, rowForFolder, sheetTitle);
+    //         const docId   = await createDocInFolder(folder.id, rowForFolder, docTitle);
+
+    //         console.log("Drive created:", { folder, sheetId, docId });
+
+    //         toast.current && toast.current.show({
+    //         severity: "success",
+    //         summary: "Created in Drive",
+    //         detail: `Folder: ${folder.name}`,
+    //         life: 3000,
+    //         });
+
+    //         setFolderDlgOpen(false);
+    //     } catch (err) {
+    //         const msg = errMessage(err);
+    //         console.error("Drive error:", msg, err);
+    //         toast.current && toast.current.show({
+    //         severity: "error",
+    //         summary: "Drive error",
+    //         detail: msg,
+    //         life: 6000,
+    //         });
+    //     }
+    // };
+
+
+    //END OF GOOOGLE DRIVE CODE
 
 
     const [chartData, setChartData] = useState({});
@@ -87,6 +875,11 @@ function Dashboard(){
     const [industryData, setIndustryData] = useState(null)
     const [backgroundColorInd, setBackgroundColorInd] = useState(null)
     const [hoverBackgroundColorInd, setHoverBackgroundColorInd] = useState(null)
+
+
+
+
+
 
     useEffect(() => {
         const data = {
@@ -171,44 +964,114 @@ function Dashboard(){
     const [emailCount, setEmailCount] = useState(0)
     const [emailVerifyCount, setEmailVerifyCount] = useState(0)
 
+
+    // const [expandedRows, setExpandedRows] = useState({}); // object form with dataKey
+
+      // 🔹 the table’s data
+    const [channels, setChannels] = useState([]);
+    const [expandedRows, setExpandedRows] = useState({}); // object form with dataKey
+    const allowExpansion = (row) => Array.isArray(row?.top3_videos) && row.top3_videos.length > 0;
+    const getHeroVideo = (row) => {
+        const list = Array.isArray(row?.top3_videos) ? row.top3_videos : [];
+        if (!list.length) return null;
+        return list.reduce((best, v) => (Number(v.views ?? 0) > Number(best.views ?? 0) ? v : best), list[0]);
+    };
+    const [popThumb, setPopThumb] = useState({}); // object form with dataKey
+    const [totalRecords, setTotalRecords] = useState(0); // ← NEW
+    const [vidCount, setVidCount] = useState(0)
+    const [channelCount, setChannelCount] = useState(0)
+    console.log('totalRecords:', totalRecords);
+
+
+    
     useEffect(() => {
         if (hitDatabase){
             console.log(`Pulling Database Leads:`)
-            axios.get(`/dashboard/${user_id}`)
-                .then(dbResult=>{
-                    console.log(dbResult.data)
-                    setLeads(dbResult.data.leadInfo)
-                    setTotalLeadCount(dbResult.data.leadInfo.length)
-                    const { userInfo, leadInfo, industryName, industryNum, backgroundColor, hoverBackgroundColor, locationName, locationNum, locationbackgroundColor, locationhoverBackgroundColor, statusName, statusNum, statusbackgroundColor, statushoverBackgroundColor} = dbResult.data
+            axios.get(`${baseUrl}/dashboard`)
+                .then((dbResult) => {
+                    // always log the data, not the axios wrapper
+                    console.log("dashboard payload:", dbResult.data);
 
-                    setLabels(industryName)
-                    setIndustryData(industryNum)
-                    setBackgroundColorInd(backgroundColor)
-                    setHoverBackgroundColorInd(hoverBackgroundColor)
+                    const payload = dbResult.data;
 
-                    setLabels2(locationName)
-                    setLocationData(locationNum)
-                    setBackgroundColorLoc(locationbackgroundColor)
-                    setHoverBackgroundColorLoc(locationhoverBackgroundColor)
+                    // items can be either payload.items (new shape) or payload (legacy array)
+                    const items = Array.isArray(payload?.items)
+                        ? payload.items
+                        : Array.isArray(payload)
+                        ? payload
+                        : [];
 
-                    setLabels3(statusName)
-                    setStatusData(statusNum)
-                    setBackgroundColorSta(statusbackgroundColor)
-                    setHoverBackgroundColorSta(statushoverBackgroundColor)
+                    // counts from API, with fallbacks
+                    const vidTotal   = payload?.vid_count ?? items.length;
+                    const chanTotal = payload?.channel_count ?? items.length;
+                        // pull counts if present, else fall back to item length
 
-                    userInfo.industry = userInfo.industry.join(", ")
-                    userInfo.location = userInfo.location.join(", ")
-                    setUserInformation(userInfo)
+                    setVidCount(vidTotal)
+                    setChannelCount(chanTotal)
 
-                    let emailCounter = 0;
-                    let emailVerCounter = 0;
-                    for (const obj of leadInfo) {
-                        if (obj.email !== '') emailCounter++;
-                        if (obj.email_verify !== null && obj.email_verify.state === 'deliverable') emailVerCounter++
-                    }
-                    setEmailVerifyCount(emailVerCounter)
-                    setEmailCount(emailCounter)
-                    console.log("emailCounter", emailCounter);
+                    const raw = Array.isArray(dbResult.data?.items) ? dbResult.data?.items : [];
+                    const rows = raw.map((r, i) => {
+                        const id = String(r.channel_id ?? i);
+                        const hero = getHeroVideo(r);
+                        const topVidViews = hero ? Number(hero.views ?? 0) : null;
+                        console.log('topVidViews:', topVidViews);
+                        // console.log('row:', r.channel_name, 'hero:', hero);
+
+                        return {
+                            ...r,                 // copy all original row fields
+                            channel_id: id,       // ensure dataKey is a string
+                            heroVideo: hero,      // stash the most-viewed video object
+                            heroThumbUrl: hero?.thumb_url, // convenience field for the thumbnail
+                            topVidViews
+                        };
+
+                    });
+
+                    setTotalRecords(payload?.items.length); // ← NEW
+
+                    setChannels(rows);
+
+                    const initialExpanded = rows.reduce((acc, row) => {
+                    if (allowExpansion(row)) acc[row.channel_id] = true;
+                    return acc;
+                    }, {});
+                    setExpandedRows({});
+
+                    // (optional) quick sanity logs
+                    console.log("channels:", rows);
+                    console.log("expandedRows:", initialExpanded);
+                    // setLeads(dbResult.data.leadInfo)
+                    // setTotalLeadCount(dbResult.data.leadInfo.length)
+                    // const { userInfo, leadInfo, industryName, industryNum, backgroundColor, hoverBackgroundColor, locationName, locationNum, locationbackgroundColor, locationhoverBackgroundColor, statusName, statusNum, statusbackgroundColor, statushoverBackgroundColor} = dbResult.data
+
+                    // setLabels(industryName)
+                    // setIndustryData(industryNum)
+                    // setBackgroundColorInd(backgroundColor)
+                    // setHoverBackgroundColorInd(hoverBackgroundColor)
+
+                    // setLabels2(locationName)
+                    // setLocationData(locationNum)
+                    // setBackgroundColorLoc(locationbackgroundColor)
+                    // setHoverBackgroundColorLoc(locationhoverBackgroundColor)
+
+                    // setLabels3(statusName)
+                    // setStatusData(statusNum)
+                    // setBackgroundColorSta(statusbackgroundColor)
+                    // setHoverBackgroundColorSta(statushoverBackgroundColor)
+
+                    // userInfo.industry = userInfo.industry.join(", ")
+                    // userInfo.location = userInfo.location.join(", ")
+                    // setUserInformation(userInfo)
+
+                    // let emailCounter = 0;
+                    // let emailVerCounter = 0;
+                    // for (const obj of leadInfo) {
+                    //     if (obj.email !== '') emailCounter++;
+                    //     if (obj.email_verify !== null && obj.email_verify.state === 'deliverable') emailVerCounter++
+                    // }
+                    // setEmailVerifyCount(emailVerCounter)
+                    // setEmailCount(emailCounter)
+                    // console.log("emailCounter", emailCounter);
                 })
                 .catch(dbError=>console.log(dbError.data))
 
@@ -217,6 +1080,39 @@ function Dashboard(){
         }
 
     }, [hitDatabase]);
+
+
+
+
+
+    // THE BUTTON CODE 
+    // const driveButtonBody = (row) => (
+    //     <PrimeButton
+    //         icon="pi pi-folder-plus"
+    //         rounded
+    //         severity="info"
+    //         aria-label="Open folder form"
+    //         onClick={() => openFolderDialog(row)}
+    //         tooltip="Create folder"
+    //     />
+    
+    // );
+    // put near your table component scope
+
+
+    
+
+    // const driveButtonBody = (row) => {
+    //     return (
+    //     <div className="flex flex-wrap gap-2">
+    //         {/* <PrimeButton label="Export" icon="pi pi-upload" className="p-button-help" onClick={() => openFolderDialog(row)} /> */}
+    //         <PrimeButton icon="pi pi-pencil" rounded outlined  onClick={() => openFolderDialog(row)} />
+
+    //     </div>
+    //     );};
+    // GOOGLE DRIVE CODE TO CREATE FOLDERS
+
+    // main-row thumbnail column (uses the precomputed field)
 
 
     const onGlobalFilterChange = (e) => {
@@ -615,6 +1511,236 @@ function Dashboard(){
         return rowData.email
     }
 
+        const heroThumbBody = (row) =>
+    row.heroThumbUrl ? (
+        <a href={row.heroVideo?.video_url} target="_blank" rel="noreferrer">
+        <img
+            src={row.heroThumbUrl}
+            alt={row.heroVideo?.title || "Top video"}
+            style={{ width: 96, height: 54, objectFit: "cover", borderRadius: 8 }}
+        className="shadow-4"/>
+        </a>
+    ) : (
+        "—"
+    );
+
+            const thumbBody = (row) =>
+    row.heroThumbUrl ? (
+        <a href={row.heroVideo?.video_url} target="_blank" rel="noreferrer">
+        <img
+            src={row.heroThumbUrl}
+            alt={row.heroVideo?.title || "Top video"}
+            style={{ width: 96, height: 54, objectFit: "cover", borderRadius: 8 }}
+        className="shadow-4"/>
+        </a>
+    ) : (
+        "—"
+    );
+
+    // simple body template
+    const channelLinkBody = (row) => {
+    if (!row.channel_url) return row.channel_name || "—";
+    return (
+        <a
+        href={row.channel_url} target="_blank" rel="noreferrer" className="p-link underline" onClick={(e) => e.stopPropagation()} // optional: keep row/expander from reacting
+        >
+        {row.channel_name}
+        </a>
+    );
+    };
+
+    // ---- GETTING THE TIMESTAMP TO READ 2025-10-24T02:20:20.055Z, TO '2 Weeks Ago' ----
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+    function timeAgo(input) {
+        const d = new Date(input);
+        if (!input || isNaN(d)) return '—';
+
+        const now = new Date();
+        // diff in seconds (negative = past)
+        let diffSeconds = Math.round((d.getTime() - now.getTime()) / 1000);
+
+        const units = [
+            ['year',   60 * 60 * 24 * 365],
+            ['month',  60 * 60 * 24 * 30],
+            ['week',   60 * 60 * 24 * 7],
+            ['day',    60 * 60 * 24],
+            ['hour',   60 * 60],
+            ['minute', 60],
+            ['second', 1],
+        ];
+
+        for (const [unit, inSeconds] of units) {
+            const value = diffSeconds / inSeconds;
+            if (Math.abs(value) >= 1 || unit === 'second') {
+            return rtf.format(Math.round(value), unit);
+            }
+        }
+    }
+    const firstUploadTextBody = (row) => {
+        const iso = row.first_upload_date;   // adjust to your field name
+        const pretty = timeAgo(iso);
+        return <span title={iso}>{pretty}</span>; // title shows exact timestamp on hover
+    };
+
+    // works for a *video* row (inside the expanded table)
+    const videoThumbBody = (vid) => {
+    if (!vid?.thumb_url) return "—";
+    return (
+        <a href={vid.video_url} target="_blank" rel="noreferrer">
+        <img
+            src={vid.thumb_url}
+            alt={vid.title}
+            style={{ width: 96, height: 54, objectFit: "cover", borderRadius: 8 }}
+            onClick={(e) => e.stopPropagation()} // optional: avoid toggling row on click
+        />
+        </a>
+    );
+    };
+    const videoTitleBody = (vid) =>
+    vid?.title ? (
+        <a href={vid.video_url} target="_blank" rel="noreferrer" className="underline">
+        {vid.title}
+        </a>
+    ) : (
+        "—"
+    );
+
+    // ####HELPERS FOR THE VIDEO TITLES
+    const ytSearchUrl = (title) =>
+    `https://www.youtube.com/results?search_query=${encodeURIComponent(title || "")}`;
+
+    const styles = {
+    ellipsis1: {               // 1 line
+        maxWidth: 420,
+        display: "inline-block",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+    },
+    ellipsis2: {               // 2 lines
+        maxWidth: 420,
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        wordBreak: "break-word",
+    },
+    };
+
+    const videoTitleBodyVideos = (vid) =>
+    vid?.title ? (
+        <a
+        href={ytSearchUrl(vid.title)}
+        target="_blank"
+        rel="noreferrer"
+        title={vid.title}                 // full title on hover
+        onClick={(e) => e.stopPropagation()} // avoid toggling the row
+        className="p-link"
+        >
+        <span style={styles.ellipsis2}>{vid.title}</span>
+        </a>
+    ) : (
+        "—"
+    );
+
+    // helper (switch style)
+    const getMonetization = (row) => {
+    switch (row?.is_monetized) {
+        case true:
+        return { label: "$$", severity: "success" }; // green
+        case false:
+        return { label: "👎", severity: "danger" }; // red
+        default:
+        return { label: "??", severity: "warning" }; // yellow (optional)
+    }
+    };
+
+    // column body
+    const monetizationBody = (row) => {
+        const { label, severity } = getMonetization(row);
+        return <Tag value={label} severity={severity} rounded />;
+    };
+
+// utils
+// Tiny helper: format as money, integers without decimals; otherwise one decimal.
+    const fmtMoney = (n) => {
+    if (!Number.isFinite(n)) return null;
+    return (n % 1 === 0) ? n.toFixed(0) : n.toFixed(1);
+    };
+
+    // Build plain text for the RPM column.
+    // Examples:
+    //   low=1, high=5     → "$1–$5 RPM"
+    //   low=2, high=null  → "$2 RPM"
+    //   low=null, high=5  → "$5 RPM"
+    //   both null/NaN     → "—"
+    const getRpmText = (row) => {
+    let low  = Number(row?.rpm_low);
+    let high = Number(row?.rpm_high);
+
+    const hasLow  = Number.isFinite(low);
+    const hasHigh = Number.isFinite(high);
+
+    if (!hasLow && !hasHigh) return "—";
+
+    // If only one side exists, show that single value.
+    if (hasLow && !hasHigh)  return `$${fmtMoney(low)} RPM`;
+    if (!hasLow && hasHigh)  return `$${fmtMoney(high)} RPM`;
+
+    // If both exist but are reversed, normalize (e.g., low=6, high=2 → "$2–$6 RPM").
+    if (low > high) [low, high] = [high, low];
+
+    return `$${fmtMoney(low)}–${fmtMoney(high)}`;
+    };
+
+    // Column body: pure text (no badges/tags).
+    const rpmBody = (row) => {
+    const text = getRpmText(row);
+    return <span title={text}>{text}</span>;
+    };
+
+    // const fmtMoney = (n) => {
+    // if (!Number.isFinite(n)) return null;
+    // // show integers without decimals; otherwise one decimal
+    // return (n % 1 === 0) ? n.toFixed(0) : n.toFixed(1);
+    // };
+
+    // // build the badge model from row
+    // const getRpmBadge = (row) => {
+    // const low  = Number(row?.rpm_low);
+    // const high = Number(row?.rpm_high);
+
+    // if (Number.isFinite(low) && Number.isFinite(high) && high > 0) {
+    //     const label = `$${fmtMoney(low)}–$${fmtMoney(high)} `;
+    //     return { label, severity: "success" };         // green
+    // }
+
+    // if (Number.isFinite(low) || Number.isFinite(high)) {
+    //     const one = Number.isFinite(low) ? low : high;
+    //     const label = `$${fmtMoney(one)} RPM`;
+    //     return { label, severity: "warning" };         // yellow (partial)
+    // }
+
+    // return { label: "No RPM", severity: "danger" };  // red (missing)
+    // };
+
+    // // column body
+    // const rpmBody = (row) => {
+    // const { label, severity } = getRpmBadge(row);
+    // return <Tag value={label} severity={severity} rounded />;
+    // };
+
+
+    const topVidViewsBody = (row) => {
+    if (typeof row.topVidViews === "number") {
+        return row.topVidViews.toLocaleString();
+    } else {
+        return "—";
+    }
+    };
+
+
     function setLeadStatusFunc(value){
         console.log(value)
         setNewLead(prev =>{
@@ -624,16 +1750,20 @@ function Dashboard(){
                 status_num: getStatusNum(value)
             }
         })
+
+        
     }
 
 
     return <div className="App">
             <Toast ref={toast} />
             <div className="sideby"> 
-                <Smallinforectangle name="Lead Count" number={totalLeadCount} />
-                <Smallinforectangle name="Industries" emoji="fa fa-edit float-end"  meaning={"Roofing"}/>
+                <Smallinforectangle name="Good Leads" number={totalRecords} />
+                <Smallinforectangle name="videos" number={vidCount}/>
+                <Smallinforectangle name="channel" number={channelCount}/>
+
                 {/* meaning={userInformation.industry.substring(0,26) + '...' }/> */}
-                <Smallinforectangle name="Locations" emoji="fa fa-edit float-end" meaning={"Utah"}/>
+                {/* <Smallinforectangle name="Locations" emoji="fa fa-edit float-end" meaning={"Utah"}/> */}
                 <Smallinforectangle name="Yellow Pages" button={pullingYellowPg ? <ProgressSpinner style={{width: '30px', height: '30px'}} strokeWidth="8" fill="var(--surface-ground)" animationDuration="1s" />  : <PrimeButton icon="pi pi-user" size="small" label='Pull Leads' rounded text raised severity="info" aria-label="User" onClick={()=> {
                         setFunc({name: Scrapeyp})
                         setVisibleHeadlessDialouge(true)
@@ -651,7 +1781,7 @@ function Dashboard(){
                     } verifyBool={verifyEmail} emailVerify={emailVerify} /> }
                 <Toolbar className="mb-4" start={leftToolbarTemplate} end={rightToolbarTemplate}></Toolbar>
 
-                <DataTable ref={dt} sortField="lead_id" sortOrder={-1}  value={leads} stripedRows paginator rows={5} rowsPerPageOptions={[5, 10, 25, 50, 500]}size="large" editMode="row" dataKey="lead_id" onRowEditComplete={onRowEditComplete} selection={selectedLead}  onSelectionChange={(e) => setSelectedLead(e.value)}  filters={filters} globalFilterFields={['company', 'industry', 'location', 'phone', 'email']} header={header} emptyMessage="No leads found.">
+                {/* <DataTable ref={dt} sortField="lead_id" sortOrder={-1}  value={leads} stripedRows paginator rows={5} rowsPerPageOptions={[5, 10, 25, 50, 500]}size="large" editMode="row" dataKey="lead_id" onRowEditComplete={onRowEditComplete} selection={selectedLead}  onSelectionChange={(e) => setSelectedLead(e.value)}  filters={filters} globalFilterFields={['company', 'industry', 'location', 'phone', 'email']} header={header} emptyMessage="No leads found.">
                     <Column selectionMode="multiple" style={{ width: '1%' }} exportable={false}></Column>
                     <Column field="lead_id" style={{ width: '0%' }}  header="ID"></Column>
 
@@ -664,9 +1794,96 @@ function Dashboard(){
                     <Column field="status" style={{whiteSpace: "nowrap"}} body={tagBodyTemp} header="Status" ></Column>
                     <Column body={urlBodyTemplate} header="Url"></Column>
                     <Column style={{whiteSpace: "nowrap"}} body={actionBodyTemplate} exportable={false}></Column>
+                </DataTable> */}
+                <DataTable
+                  /* 👇 add these */
+                paginator
+                rows={50}                                 // page size
+                rowsPerPageOptions={[25, 50, 100, 200]}    // user choices
+                pageLinkSize={5}                           // how many page links to show
+                paginatorTemplate="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
+                currentPageReportTemplate="Showing {first}–{last} of {totalRecords}"
+                
+                value={channels}
+                dataKey="channel_id"
+                expandedRows={expandedRows}
+                onRowToggle={(e) => setExpandedRows(e.data)}
+                rowExpansionTemplate={(row) => (
+                    <div className="p-3">
+                    <h5>Top Videos for {row.channel_name}</h5>
+                    <DataTable value={row.top3_videos || []}>
+                        <Column field="title" body={videoTitleBodyVideos} header="Title" />
+                        <Column header="Thumb" body={videoThumbBody}  />
+                        <Column field="views" header="Views" />
+                        <Column field="duration_mins" header="Duration" />
+                        <Column header="Watch" body={(v) => (<a href={v.video_url} target="_blank" rel="noreferrer">Open</a>)} />
+                    </DataTable>
+                    </div>
+                )}
+                >
+                <Column expander={allowExpansion} style={{ width: '5rem' }} />
+                {/* ...your other columns... */}
+                <Column field="channel_name" body={channelLinkBody} header="Channel" />
+                <Column field="is_monetized" body={monetizationBody} style={{ width: "8rem" }} header="Monetized" />
+                <Column header="Top Video" body={heroThumbBody} style={{ width: "8rem" }} />
+                <Column field="Top Views" body={topVidViewsBody} header="TopVid Views" sortable/>
+                <Column field="sub_count" header="Subs" />
+                <Column field="views_last_month" header="Month Views" sortable/>
+                <Column field="revenue_last_month" header="Rev Last Mon" sortable/>
+                <Column header="RPM" body={rpmBody} sortable/>
+
+                <Column field="avg_monthly_uploads" header="Monthly Uploads" sortable/>
+                <Column field="first_upload_date" body={firstUploadTextBody} header="First Upload" sortable/>
+                <Column field="claimed_by" header="Clamed By" />
+
+                {/* <Column field="channel_url" header="URL" /> */}
+                <Column header="Drive" body={driveButtonBody} exportable={false} style={{ width: "6rem", textAlign: "center" }} />
+
+
                 </DataTable>
+
+
+                {/* <DataTable value={channels}  dataKey="channel_id">
+                <Column field="channel_id" header="ID" hidden />
+                <Column field="company" header="Company" />
+                <Column field="channel_name" header="Channel" />
+                <Column field="sub_count" header="Subs" />
+                <Column field="views_last_month" header="Month Views" />
+                <Column field="revenue_last_month" header="Rev Last Mon" />
+                <Column field="avg_monthly_uploads" header="Month Uploads" />
+                <Column field="channel_url" header="URL" />
+                </DataTable> */}
+                  
+                    {/* <DataTable value={channels} expandedRows={expandedRows} onRowToggle={(e) => setExpandedRows(e.data)}
+                            onRowExpand={onRowExpand} onRowCollapse={onRowCollapse} rowExpansionTemplate={rowExpansionTemplate}
+                            dataKey="id" header={header} tableStyle={{ minWidth: '60rem' }}>
+                        <Column expander={allowExpansion} style={{ width: '5rem' }} />
+                        <Column field="channel" header="C" sortable />
+                        <Column header="Image" body={imageBodyTemplate} />
+                        <Column field="price" header="Price" sortable body={priceBodyTemplate} />
+                        <Column field="category" header="Category" sortable />
+                        <Column field="rating" header="Reviews" sortable body={ratingBodyTemplate} />
+                        <Column field="inventoryStatus" header="Status" sortable body={statusBodyTemplate} />
+                    </DataTable> */}
+
                 
                 {/* MODALS */}
+                <ModalCreateDriveFolder
+                header="Create Drive Folder"
+                visibleCreateFolder={folderDlgOpen}
+                onHide={() => setFolderDlgOpen(false)}
+                folderName={folderName}
+                onFolderNameChange={(e) => setFolderName(e.target.value)}
+                rowLabel={rowForFolder?.channel_name}
+                submitLabel="Test Submit"
+                cancelLabel="Cancel"
+                loading={false}
+                showError={submitAttempt && !folderName}
+                errorText="Folder name is required"
+                onSubmit={handleCreateAll}
+
+                />
+
                 <ModalNewLead visibleNewLead={visibleNewLead} productDialogFooter={productDialogFooter} setVisibleNewLead={()=> closeNewLeadModal()}  company={newlead.company} industry={newlead.industry} location={newlead.location} phone={newlead.phone} email={newlead.email} url={newlead.url} companyError={errors.company} industryError={errors.industry} locationError={errors.location} phoneError={errors.phone} emailError={errors.email} leadStatus={newlead.status} setLeadStatus={setLeadStatusFunc}  statuses={statuses}  submitNewLead={submitNewLead} Formchange={Inputchange}  />
                 <ModalSwitch visibleHeadlessDialouge={visibleHeadlessDialouge} headlessBrowserDialogFooter={headlessBrowserDialogFooter} setVisibleHeadlessDialouge={() => setVisibleHeadlessDialouge(false)}  headlessBrowser={headlessBrowser} setHeadless={()=> setHeadlessBrowser(!headlessBrowser)} />
             </div>

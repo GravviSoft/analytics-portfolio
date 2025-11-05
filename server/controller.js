@@ -425,98 +425,260 @@ module.exports = {
                 })
             .catch(err => res.status(400).send(err))
         },
+        getDashboard: (req, res) => {
+        console.log(req.body, req.params);
+        let { user_id } = req.params;
+        console.log(user_id);
 
-        getDashboard: (req, res)=>{
-            console.log(req.body, req.params)
-            let { user_id } = req.params
-        
-            console.log(user_id)
+        // 🔹 ORIGINAL QUERY — unchanged
+        sequelize.query(
+            `
+            WITH picked_channels AS (
+            SELECT c.*
+            FROM public.channel c
+            WHERE
+                c.sub_count ~ '^[0-9]+$'
+                AND c.sub_count::bigint < 100000
+                AND EXISTS (
+                    SELECT 1
+                    FROM public.videos v
+                    WHERE v.channel_url = c.channel_url
+                    AND v.views > 100000
+                )
+                AND c.first_upload_date_corrected = TRUE
+                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '1 month')
+                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '3 months')
+                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '12 months')
+                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '24 months')
+                AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '6 months')
+            ORDER BY c.channel_url
+            --LIMIT 10
+            )
+            SELECT
+            pc.*,
+            t.top3_videos
+            FROM picked_channels pc
+            LEFT JOIN LATERAL (
+            SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'title',         v.title,
+                        'views',         v.views,
+                        'released_date', v.released_date,
+                        'video_url',     v.video_url,
+                        'duration_mins', v.duration_mins,
+                        'thumb_url',     v.thumb_url
+                    )
+                    ORDER BY v.views DESC
+                    ) AS top3_videos
+            FROM (
+                SELECT
+                v.title,
+                v.views,
+                v.released_date,
+                v.video_url,
+                v.duration_mins,
+                v.thumb_url
+                FROM public.videos v
+                WHERE v.channel_url = pc.channel_url
+                ORDER BY v.views DESC NULLS LAST
+                LIMIT 3
+            ) v
+            ) t ON TRUE;
+             `
+        )
+                // 🔹 ORIGINAL QUERY — unchanged
 
-            sequelize.query(`SELECT * FROM users WHERE user_id = '${user_id}'`)
-            .then(dbResult =>{
-                console.log("dbResult[0][0]", dbResult[0][0])
-                const userLocation = dbResult[0][0].location
-                const userIndustry = dbResult[0][0].industry
+        .then(dataResults => {
+            // 🔹 Extra query #1: total videos
+            sequelize.query(`SELECT COUNT(*)::int AS vid_count FROM public.videos`)
+            .then(([data2]) => {
+                // 🔹 Extra query #2: total channels
+                sequelize.query(`SELECT COUNT(*)::int AS channel_count FROM public.channel`)
+                .then(([data3]) => {
+                    console.log(dataResults, data2, data3);
+                    res.status(200).send({
+                    items: dataResults[0],
+                    vid_count: data2?.[0]?.vid_count ?? 0,
+                    channel_count: data3?.[0]?.channel_count ?? 0
+                    });
 
-                const newLoc = userLocation.join("%|%")
-                const newInd = userIndustry.join("%|%")
-
-                sequelize.query(`SELECT * FROM leads WHERE location SIMILAR TO '%${newLoc}%' AND industry SIMILAR TO '%${newInd}%' OR leads.user_id = '${user_id}'`)
-                
-                .then(leadsResults =>{
-                    sequelize.query(`SELECT industry, COUNT (*) AS industry_count FROM leads WHERE user_id = '${user_id}' GROUP BY industry`)
-                    .then(pieChartData=>{
-                        let industryName = []
-                        let industryNum = []
-                        let backgroundColor = []
-                        let hoverBackgroundColor = []
-
-                        let f = Math.round, r= Math.random, n= 255;
-
-                        pieChartData[0].map(item => {
-                            industryName.push(item.industry)
-                            industryNum.push(+item.industry_count)
-                            let rgba = `${f(r()*n)}, ${f(r()*n)}, ${f(r()*n)}`
-                            backgroundColor.push(`rgba(${rgba}, 0.2)`)
-                            hoverBackgroundColor.push(`rgb(${rgba})`)
-                        })
-                        sequelize.query(`SELECT location, COUNT (*) AS location_count FROM leads WHERE user_id = '${user_id}' GROUP BY location`)
-                        .then(pieChartData2=>{
-                            let locationName = []
-                            let locationNum = []
-                            let locationbackgroundColor = []
-                            let locationhoverBackgroundColor = []
-                            let f = Math.round, r= Math.random, n= 255;
-
-                            pieChartData2[0].map(item => {
-                                locationName.push(item.location)
-                                locationNum.push(+item.location_count)
-                                let rgba = `${f(r()*n)}, ${f(r()*n)}, ${f(r()*n)}`
-                                locationbackgroundColor.push(`rgba(${rgba}, 0.2)`)
-                                locationhoverBackgroundColor.push(`rgb(${rgba})`)
-                            })
-   
-                            sequelize.query(`SELECT status, COUNT (*) AS status_count FROM leads WHERE user_id = '${user_id}' GROUP BY status`)
-                            .then(pieChartData3=>{
-                                let statusName = []
-                                let statusNum = []
-                                let statusbackgroundColor = []
-                                let statushoverBackgroundColor = []
-
-                                pieChartData3[0].map(item => {
-                                    statusName.push(item.status)
-                                    statusNum.push(+item.status_count)
-                                    const getStatusGraphBackGroundColor = (status) =>{
-                                        switch (status){
-                                            case 'dnc':
-                                                return '244, 230, 24';
-                                            case 'unqualified':
-                                                return '47, 75, 54';
-                                            case 'new client':
-                                                return '19, 227, 183';
-                                            case 'prospect':
-                                                return '11, 98, 252';
-                                            case 'meeting':
-                                                return '249, 115, 21';
-                                            case 'negotiation':
-                                                return '217, 79, 133';
-                                            }
-                                    }
-                                    statusbackgroundColor.push(`rgba(${getStatusGraphBackGroundColor(item.status)}, 0.2)`)
-                                    statushoverBackgroundColor.push(`rgb(${getStatusGraphBackGroundColor(item.status)})`)
-                                })                                
-                                res.status(200).send({userInfo: dbResult[0][0], leadInfo: leadsResults[0], industryName: industryName, industryNum: industryNum, backgroundColor: backgroundColor, hoverBackgroundColor: hoverBackgroundColor, locationName: locationName, locationNum: locationNum, locationbackgroundColor: locationbackgroundColor, locationhoverBackgroundColor: locationhoverBackgroundColor, statusName:  statusName, statusNum: statusNum, statusbackgroundColor:  statusbackgroundColor, statushoverBackgroundColor: statushoverBackgroundColor})
-                            })
-                            .catch(err=>res.status(400).send(err))
-                        })
-                        .catch(err=>res.status(400).send(err))
-                    })
-                    .catch(err=>res.status(400).send(err))
                 })
-                .catch(err=>{res.status(400).send(err)})    
+                .catch(err => {
+                    console.log(err);
+                    res.status(500).send(err);
+                });
             })
-            .catch(err=>{res.status(400).send(err)})  
+            .catch(err => {
+                console.log(err);
+                res.status(500).send(err);
+            });
+        })
+        .catch(err => {
+            console.log(`ERRRRROR: ${err}`);
+            res.status(400).send(err);
+        });
         },
+
+        // getDashboard: (req, res)=>{
+        //     console.log(req.body, req.params)
+        //     let { user_id } = req.params
+        
+        //     console.log(user_id)
+        //     sequelize.query(
+        //     `WITH picked_channels AS (
+        //     SELECT c.*
+        //     FROM public.channel c
+        //     WHERE
+        //         c.sub_count ~ '^[0-9]+$'
+        //         AND c.sub_count::bigint < 100000
+        //         AND EXISTS (
+        //         SELECT 1
+        //         FROM public.videos v
+        //         WHERE v.channel_url = c.channel_url
+        //             AND v.views > 100000
+        //         )
+        //         AND c.first_upload_date_corrected = TRUE
+        //     ORDER BY c.channel_url
+        //     --LIMIT 10
+        //     )
+        //     SELECT
+        //     pc.*,
+        //     t.top3_videos
+        //     FROM picked_channels pc
+        //     LEFT JOIN LATERAL (
+        //     SELECT jsonb_agg(
+        //             jsonb_build_object(
+        //                 'title',         v.title,
+        //                 'views',         v.views,       -- already numeric
+        //                 'released_date', v.released_date,          -- actual date/timestamp column
+        //                 'video_url',     v.video_url,   -- full watch URL
+        //                 'duration_mins', v.duration_mins,    -- e.g. "11:43" or "1:02:59"
+        //                 'thumb_url',     v.thumb_url
+        //             )
+        //             ORDER BY v.views DESC
+        //             ) AS top3_videos
+        //     FROM (
+        //         SELECT
+        //         v.title,
+        //         v.views,
+        //         v.released_date,
+        //         v.video_url,
+        //         v.duration_mins,
+        //         v.thumb_url
+        //         FROM public.videos v
+        //         WHERE v.channel_url = pc.channel_url
+        //         ORDER BY v.views DESC NULLS LAST
+        //         LIMIT 3
+        //     ) v
+        //     ) t ON TRUE;`
+        // )
+        //     .then(dataResults =>{
+        //         // console.log(dataResults)
+        //         // console.log(dataResults[0])
+        //         sequalize.query(`SELECT COUNT(*) AS vid_count FROM videos'`)
+        //         .then(data2 =>{
+        //             console.log(data2)
+        //             sequalize.query(`SELECT COUNT(*) AS channel_count FROM channel'`)
+        //             .then(data3 =>{
+        //                 console.log(data3)
+        //                 res.status(200).send({items: dataResults[0], vid_count: data2[0][0].vid_count, channel_count: data3[0][0].channel_count })
+
+        //                 })
+        //             .catch(err => console.log(err))
+        //                 })
+        //         .catch(err => console.log(err))
+        //         // res.status(200).send(dataResults[0])
+        //     })
+        //     .catch(err=>{
+        //         console.log(`ERRRRROR: ${err}`)
+        //         res.status(400).send(err)
+        //     })
+
+        //     // sequelize.query(`SELECT * FROM users WHERE user_id = '${user_id}'`)
+        //     // .then(dbResult =>{
+        //     //     console.log("dbResult[0][0]", dbResult[0][0])
+        //     //     const userLocation = dbResult[0][0].location
+        //     //     const userIndustry = dbResult[0][0].industry
+
+        //     //     const newLoc = userLocation.join("%|%")
+        //     //     const newInd = userIndustry.join("%|%")
+
+        //     //     sequelize.query(`SELECT * FROM leads WHERE location SIMILAR TO '%${newLoc}%' AND industry SIMILAR TO '%${newInd}%' OR leads.user_id = '${user_id}'`)
+                
+        //     //     .then(leadsResults =>{
+        //     //         sequelize.query(`SELECT industry, COUNT (*) AS industry_count FROM leads WHERE user_id = '${user_id}' GROUP BY industry`)
+        //     //         .then(pieChartData=>{
+        //     //             let industryName = []
+        //     //             let industryNum = []
+        //     //             let backgroundColor = []
+        //     //             let hoverBackgroundColor = []
+
+        //     //             let f = Math.round, r= Math.random, n= 255;
+
+        //     //             pieChartData[0].map(item => {
+        //     //                 industryName.push(item.industry)
+        //     //                 industryNum.push(+item.industry_count)
+        //     //                 let rgba = `${f(r()*n)}, ${f(r()*n)}, ${f(r()*n)}`
+        //     //                 backgroundColor.push(`rgba(${rgba}, 0.2)`)
+        //     //                 hoverBackgroundColor.push(`rgb(${rgba})`)
+        //     //             })
+        //     //             sequelize.query(`SELECT location, COUNT (*) AS location_count FROM leads WHERE user_id = '${user_id}' GROUP BY location`)
+        //     //             .then(pieChartData2=>{
+        //     //                 let locationName = []
+        //     //                 let locationNum = []
+        //     //                 let locationbackgroundColor = []
+        //     //                 let locationhoverBackgroundColor = []
+        //     //                 let f = Math.round, r= Math.random, n= 255;
+
+        //     //                 pieChartData2[0].map(item => {
+        //     //                     locationName.push(item.location)
+        //     //                     locationNum.push(+item.location_count)
+        //     //                     let rgba = `${f(r()*n)}, ${f(r()*n)}, ${f(r()*n)}`
+        //     //                     locationbackgroundColor.push(`rgba(${rgba}, 0.2)`)
+        //     //                     locationhoverBackgroundColor.push(`rgb(${rgba})`)
+        //     //                 })
+   
+        //     //                 sequelize.query(`SELECT status, COUNT (*) AS status_count FROM leads WHERE user_id = '${user_id}' GROUP BY status`)
+        //     //                 .then(pieChartData3=>{
+        //     //                     let statusName = []
+        //     //                     let statusNum = []
+        //     //                     let statusbackgroundColor = []
+        //     //                     let statushoverBackgroundColor = []
+
+        //     //                     pieChartData3[0].map(item => {
+        //     //                         statusName.push(item.status)
+        //     //                         statusNum.push(+item.status_count)
+        //     //                         const getStatusGraphBackGroundColor = (status) =>{
+        //     //                             switch (status){
+        //     //                                 case 'dnc':
+        //     //                                     return '244, 230, 24';
+        //     //                                 case 'unqualified':
+        //     //                                     return '47, 75, 54';
+        //     //                                 case 'new client':
+        //     //                                     return '19, 227, 183';
+        //     //                                 case 'prospect':
+        //     //                                     return '11, 98, 252';
+        //     //                                 case 'meeting':
+        //     //                                     return '249, 115, 21';
+        //     //                                 case 'negotiation':
+        //     //                                     return '217, 79, 133';
+        //     //                                 }
+        //     //                         }
+        //     //                         statusbackgroundColor.push(`rgba(${getStatusGraphBackGroundColor(item.status)}, 0.2)`)
+        //     //                         statushoverBackgroundColor.push(`rgb(${getStatusGraphBackGroundColor(item.status)})`)
+        //     //                     })                                
+        //     //                     res.status(200).send({userInfo: dbResult[0][0], leadInfo: leadsResults[0], industryName: industryName, industryNum: industryNum, backgroundColor: backgroundColor, hoverBackgroundColor: hoverBackgroundColor, locationName: locationName, locationNum: locationNum, locationbackgroundColor: locationbackgroundColor, locationhoverBackgroundColor: locationhoverBackgroundColor, statusName:  statusName, statusNum: statusNum, statusbackgroundColor:  statusbackgroundColor, statushoverBackgroundColor: statushoverBackgroundColor})
+        //     //                 })
+        //     //                 .catch(err=>res.status(400).send(err))
+        //     //             })
+        //     //             .catch(err=>res.status(400).send(err))
+        //     //         })
+        //     //         .catch(err=>res.status(400).send(err))
+        //     //     })
+        //     //     .catch(err=>{res.status(400).send(err)})    
+        //     // })
+        //     // .catch(err=>{res.status(400).send(err)})  
+        // },
 
         patchDashboard:  (req, res)=>{
             console.log(req.params, req.body)

@@ -8,9 +8,25 @@ const { PORT_NUM } = process.env
 const app = express();
 
 app.use(cors({
-  origin: "https://dv-mtn-capstone.vercel.app",
-  credentials: true
+  // origin: "https://dv-mtn-capstone.vercel.app",
+  // origin: "http://localhost:5023",
+  // credentials: true
 }));
+
+// logs every request so you can SEE if /channels hits your server
+// Log every request so we SEE what hits this process
+app.use((req, _res, next) => { console.log('➡️ ', req.method, req.url); next(); });
+
+// Health check
+app.get('/health', (_req, res) => res.json({ ok: true }));
+
+// TEMP: hard-coded /channels route to prove routing works
+app.get('/channels', (_req, res) => {
+  res.json({ rows: [{ channel_id: 1, channel_name: 'test', channel_url: 'https://x' }] });
+});
+
+
+console.log('🚀 Booting server from', __filename);
 
 app.use(express.json())
 
@@ -24,7 +40,7 @@ app.post('/login', loginFunc)
 
 app.post('/selectleads', selectLeadsFunc)
 
-app.get('/dashboard/:user_id', getDashboard)
+app.get('/dashboard', getDashboard)
 
 app.patch('/dashboard/:lead_id', patchDashboard)
 
@@ -52,7 +68,9 @@ app.patch('/notes/lead/:lead_id/:user_id/:notes_id', patchNote)
 
 app.delete('/notes/lead/:lead_id/:user_id/:notes_id', deleteLead)
 
+// app.use((req, _res, next) => { console.log('➡️ ', req.method, req.url); next(); });
 
-app.listen(PORT_NUM, ()=>{
-  console.log(`Server running on port # ${PORT_NUM}`)
-})
+
+const PORT = process.env.PORT_NUM || 5023;
+app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT} (pid ${process.pid})`));
+
