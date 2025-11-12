@@ -9,7 +9,7 @@ const app = express();
 
 app.use(cors({
   // origin: "https://dv-mtn-capstone.vercel.app",
-  // origin: "http://localhost:5023",
+  origin: "http://localhost:5023",
   // credentials: true
 }));
 
@@ -30,7 +30,7 @@ console.log('🚀 Booting server from', __filename);
 
 app.use(express.json())
 
-const {seed, registerFunc, loginFunc, selectLeadsFunc, scrapeGoogleFunc, scrapeYPFunc, getDashboard, patchDashboard, postDashboard, getLead, postLead, patchLead, deleteLead, deleteDashboard, emailPull, emailVerify, getLeadNote, patchNote} = require('./controller.js');
+const {seed, registerFunc, patchChannel, loginFunc, selectLeadsFunc, scrapeGoogleFunc, scrapeYPFunc, getDashboard, patchDashboard, postDashboard, getLead, postLead, patchLead, deleteLead, deleteDashboard, emailPull, emailVerify, getLeadNote, patchNote} = require('./controller.js');
 
 app.get('/seed', seed)
 
@@ -43,6 +43,9 @@ app.post('/selectleads', selectLeadsFunc)
 app.get('/dashboard', getDashboard)
 
 app.patch('/dashboard/:lead_id', patchDashboard)
+
+app.patch('/channel/:channel_id', patchChannel)
+
 
 app.post('/dashboard/:user_id', postDashboard)
 

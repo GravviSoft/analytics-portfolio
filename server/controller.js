@@ -425,6 +425,8 @@ module.exports = {
                 })
             .catch(err => res.status(400).send(err))
         },
+
+        
         getDashboard: (req, res) => {
         console.log(req.body, req.params);
         let { user_id } = req.params;
@@ -437,22 +439,17 @@ module.exports = {
             SELECT c.*
             FROM public.channel c
             WHERE
-                c.sub_count ~ '^[0-9]+$'
-                AND c.sub_count::bigint < 100000
+                c.sub_count_num IS NOT NULL
+                AND c.sub_count_num < 100000
                 AND EXISTS (
-                    SELECT 1
-                    FROM public.videos v
-                    WHERE v.channel_url = c.channel_url
-                    AND v.views > 100000
+                SELECT 1
+                FROM public.videos v
+                WHERE v.channel_url = c.channel_url
+                AND v.views > 100000
                 )
-                AND c.first_upload_date_corrected = TRUE
-                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '1 month')
-                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '3 months')
-                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '12 months')
-                --AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '24 months')
-                AND c.first_upload_date >= (CURRENT_DATE - INTERVAL '6 months')
+                AND c.not_interested IS FALSE
+
             ORDER BY c.channel_url
-            --LIMIT 10
             )
             SELECT
             pc.*,
@@ -460,16 +457,16 @@ module.exports = {
             FROM picked_channels pc
             LEFT JOIN LATERAL (
             SELECT jsonb_agg(
-                    jsonb_build_object(
-                        'title',         v.title,
-                        'views',         v.views,
-                        'released_date', v.released_date,
-                        'video_url',     v.video_url,
-                        'duration_mins', v.duration_mins,
-                        'thumb_url',     v.thumb_url
-                    )
-                    ORDER BY v.views DESC
-                    ) AS top3_videos
+                jsonb_build_object(
+                'title',         v.title,
+                'views',         v.views,
+                'released_date', v.released_date,
+                'video_url',     v.video_url,
+                'duration_mins', v.duration_mins,
+                'thumb_url',     v.thumb_url
+                )
+                ORDER BY v.views DESC
+            ) AS top3_videos
             FROM (
                 SELECT
                 v.title,
@@ -484,6 +481,7 @@ module.exports = {
                 LIMIT 3
             ) v
             ) t ON TRUE;
+
              `
         )
                 // 🔹 ORIGINAL QUERY — unchanged
@@ -680,6 +678,71 @@ module.exports = {
         //     // .catch(err=>{res.status(400).send(err)})  
         // },
 
+
+// Executing (default): UPDATE channel SET is_monetized = 'undefined', revenue_last_month = 'undefined', rpm_low = 'undefined', rpm_high = 'undefined'  WHERE channel_id = 2693804
+// ERRRRROR: SequelizeDatabaseError: invalid input syntax for type boolean: "undefined"
+        
+//         patchChannel:  (req, res)=>{
+//             console.log(req.params, req.body)
+//             const { channel_id } = req.params
+//             const { is_monetized, revenue_last_month, rpm_low, rpm_high,  } = req.body
+//             console.log(req.body)
+//             sequelize.query(`UPDATE channel SET is_monetized = '${is_monetized}', revenue_last_month = '${revenue_last_month}', rpm_low = '${rpm_low}', rpm_high = '${rpm_high}'  WHERE channel_id = ${channel_id}`)
+//             .then(dataResults =>{
+//                 console.log(dataResults)
+//                 res.status(200).send({msg: "Successfully updated lead!"})
+//             })
+//             .catch(err=>{
+//                 console.log(`ERRRRROR: ${err}`)
+//                  res.status(400).send(err)
+//             }) 
+//         },
+
+        // assuming you have a defined Channel model
+        // PATCH /channel/:channel_id
+        patchChannel: async (req, res) => {
+        try {
+            const id = Number(req.params.channel_id);
+            if (!Number.isInteger(id)) return res.status(400).json({ msg: 'Bad channel_id' });
+
+            const ALLOWED = new Set([
+            'is_monetized','revenue_last_month','rpm_low','rpm_high',
+            'interested','claimed_by','first_upload_date','sub_count','views_last_month', 'not_interested'
+            ]);
+
+            const body = req.body || {};
+            // coerce boolean strings
+            for (const k of ['is_monetized','interested', 'not_interested']) {
+            if (k in body) {
+                if (body[k] === 'true') body[k] = true;
+                if (body[k] === 'false') body[k] = false;
+            }
+            }
+
+            const patch = {};
+            for (const [k, v] of Object.entries(body)) {
+            if (ALLOWED.has(k) && v !== undefined) patch[k] = v;
+            }
+            const keys = Object.keys(patch);
+            if (keys.length === 0) return res.status(400).json({ msg: 'No valid fields in body' });
+
+            const setSql = keys.map((k, i) => `"${k}" = $${i + 1}`).join(', ');
+            const values = keys.map(k => patch[k]);
+            values.push(id);
+
+            await sequelize.query(
+            `UPDATE channel SET ${setSql} WHERE channel_id = $${keys.length + 1}`,
+            { bind: values }
+            );
+            res.json({ msg: 'Channel updated' });
+        } catch (err) {
+            console.error(err);
+            res.status(500).json({ msg: 'Server error' });
+        }
+        },
+
+
+        
         patchDashboard:  (req, res)=>{
             console.log(req.params, req.body)
             const { lead_id } = req.params

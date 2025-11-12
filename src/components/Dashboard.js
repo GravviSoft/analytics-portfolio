@@ -13,13 +13,31 @@ import { Button as PrimeButton }  from 'primereact/button';
 import { Toolbar } from 'primereact/toolbar';
 import { Tag } from 'primereact/tag';
 import { Link } from "react-router-dom";
-import { FilterMatchMode } from 'primereact/api';
+// import { FilterMatchMode } from 'primereact/api';
 import { ProgressSpinner } from 'primereact/progressspinner';                
 import ModalSwitch from './Dashboardcomp/Modalswitch';
 import { getStatusNum, getStatusColor } from './helpers/swithstatus';
 import Leadchart from './Dashboardcomp/Chart'
 import { Badge } from 'primereact/badge';
 import { baseUrl } from '../constants/globals';
+import { Calendar } from 'primereact/calendar';
+import { Dropdown } from 'primereact/dropdown';
+import { FilterMatchMode, FilterService } from 'primereact/api';
+
+// PrimeReact custom operator: keep rows whose date is within N months from today
+FilterService.register('withinMonths', (value, filter /* N months */) => {
+  // value = row.first_upload_date (ISO string or Date)
+  // filter = number (1|2|3|4) or null
+  if (filter == null) return true;            // "All time"
+  if (!value) return false;
+
+  const d = new Date(value);
+  if (isNaN(d)) return false;
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - Number(filter));
+  return d >= cutoff;
+});
 
 
 function Dashboard(){
@@ -43,9 +61,20 @@ function Dashboard(){
 
     const [selectedLead, setSelectedLead] = useState(null);
 
-    const [filters, setFilters] = useState(null);
+    // const [filters, setFilters] = useState(null);
     const [globalFilterValue, setGlobalFilterValue] = useState('');
+    
+    const [first, setFirst] = useState(0); // index of first row on the current page
+    const [monthWindow, setMonthWindow] = useState(null); // null | 1 | 2 | 3 | 4
+    const [filters, setFilters] = useState({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    first_upload_date: { value: null, matchMode: 'withinMonths' } // 👈 our custom rule
+    });
+    const [windowCount, setWindowCount] = useState(0); // for the stat card/report
 
+        
+
+    
     const [leads, setLeads] = useState([]);
     const [patchData, setPatchData] = useState(null)
     const [submitEdit, setSubmitEdit] = useState(false)
@@ -982,8 +1011,14 @@ function Dashboard(){
     const [channelCount, setChannelCount] = useState(0)
     console.log('totalRecords:', totalRecords);
 
-
+    // // helper (put near top of file)
+    // const toBoolNull = (v) =>
+    // v === true || v === 'true' ? true :
+    // v === false || v === 'false' ? false :
+    // null;
     
+
+
     useEffect(() => {
         if (hitDatabase){
             console.log(`Pulling Database Leads:`)
@@ -1008,13 +1043,14 @@ function Dashboard(){
 
                     setVidCount(vidTotal)
                     setChannelCount(chanTotal)
+                    
 
                     const raw = Array.isArray(dbResult.data?.items) ? dbResult.data?.items : [];
                     const rows = raw.map((r, i) => {
                         const id = String(r.channel_id ?? i);
                         const hero = getHeroVideo(r);
                         const topVidViews = hero ? Number(hero.views ?? 0) : null;
-                        console.log('topVidViews:', topVidViews);
+                        // console.log('topVidViews:', topVidViews);
                         // console.log('row:', r.channel_name, 'hero:', hero);
 
                         return {
@@ -1022,7 +1058,10 @@ function Dashboard(){
                             channel_id: id,       // ensure dataKey is a string
                             heroVideo: hero,      // stash the most-viewed video object
                             heroThumbUrl: hero?.thumb_url, // convenience field for the thumbnail
-                            topVidViews
+                            topVidViews,
+
+                                          // ✅ normalize so editors/bodies always see boolean/null
+                            is_monetized: toBoolNull(r.is_monetized),
                         };
 
                     });
@@ -1030,6 +1069,7 @@ function Dashboard(){
                     setTotalRecords(payload?.items.length); // ← NEW
 
                     setChannels(rows);
+                    setWindowCount(rows.length);
 
                     const initialExpanded = rows.reduce((acc, row) => {
                     if (allowExpansion(row)) acc[row.channel_id] = true;
@@ -1076,12 +1116,54 @@ function Dashboard(){
                 .catch(dbError=>console.log(dbError.data))
 
             setHitDatabase(false)
-            initFilters();
+            // initFilters();
         }
 
     }, [hitDatabase]);
 
 
+
+    const monthOptions = [
+    { label: 'All time', value: null },
+    { label: 'Last 1 month', value: 1 },
+    { label: 'Last 2 months', value: 2 },
+    { label: 'Last 3 months', value: 3 },
+    { label: 'Last 4 months', value: 4 },
+    ];
+
+    // const [first, setFirst] = useState(0); // make sure this exists at top-level
+
+    const windowSelector = (
+    <div className="flex items-center gap-2">
+        <span className="text-sm">Window:</span>
+        <Dropdown
+        value={monthWindow}
+        options={monthOptions}
+        optionLabel="label"
+        optionValue="value"
+        onChange={(e) => {
+            setMonthWindow(e.value);
+
+            // update DataTable filters for custom rule
+            setFilters((f) => ({
+            ...f,
+            first_upload_date: { ...f.first_upload_date, value: e.value },
+            }));
+
+            // go back to page 1 (PrimeReact has no resetPage)
+            setFirst(0);
+
+            // nudge table filter with our custom operator
+            if (dt.current?.filter) {
+            dt.current.filter(e.value, 'first_upload_date', 'withinMonths');
+            }
+        }}
+        className="w-12rem"
+        placeholder="All time"
+        appendTo={document.body}
+        />
+    </div>
+    );
 
 
 
@@ -1341,7 +1423,8 @@ function Dashboard(){
         console.log(patchData)
         if (submitEdit){
             console.log(`MY PATCH DATA:`, patchData)
-            axios.patch(`/dashboard/${patchData.lead_id}`, patchData)
+            
+            axios.patch(`/channel/${patchData.channel_id}`, patchData)
                 .then(dbResult=>{
                     const { msg } = dbResult.data
                     toast.current.show({ severity: 'success', summary: 'Successful', detail: msg, life: 3000 });
@@ -1357,10 +1440,168 @@ function Dashboard(){
         }, [submitEdit]);
 
 
+    // const onRowEditComplete = (e) => {
+    //     let { newData, index } = e;
+    //     setPatchData(newData)
+    //     setSubmitEdit(true)
+    // };
+// ✅ build a tiny patch from row changes + normalize the date
+    // const onRowEditComplete = (e) => {
+    // const { newData, data: oldData } = e; // oldData is the row before edit
+    // const id = newData.channel_id;
+
+    // // Only allow these fields to be changed via the UI
+    // const editable = [
+    //     'is_monetized',
+    //     'revenue_last_month',
+    //     'rpm_low',
+    //     'rpm_high',
+    //     'first_upload_date',
+    //     'claimed_by',
+    //     // 'interested', // <-- exclude so you don't nuke the filter accidentally
+    // ];
+
+    // const patch = {};
+    // editable.forEach((k) => {
+    //     if (newData[k] !== oldData[k] && newData[k] !== undefined) {
+    //     patch[k] = newData[k];
+    //     }
+    // });
+
+    // // Nothing changed → bail
+    // if (Object.keys(patch).length === 0) return;
+
+    // // If you edit the date, normalize to ISO string
+    // if (patch.first_upload_date instanceof Date) {
+    //     patch.first_upload_date = patch.first_upload_date.toISOString();
+    // }
+
+    // // Trigger your existing effect-driven save
+    // setPatchData({ channel_id: id, ...patch });
+    // setSubmitEdit(true);
+    // };
     const onRowEditComplete = (e) => {
-        let { newData, index } = e;
-        setPatchData(newData)
-        setSubmitEdit(true)
+        const { newData, data: oldData } = e;
+        const patch = {};
+        const editable = ['is_monetized','revenue_last_month','rpm_low','rpm_high','first_upload_date','claimed_by'];
+
+        // coerce & diff
+        const normalized = { ...newData, is_monetized: toBoolNull(newData.is_monetized) };
+        editable.forEach(k => {
+            if (normalized[k] !== oldData[k] && normalized[k] !== undefined) patch[k] = normalized[k];
+        });
+        if (patch.first_upload_date instanceof Date) patch.first_upload_date = patch.first_upload_date.toISOString();
+        if (Object.keys(patch).length === 0) return;
+
+        setPatchData({ channel_id: newData.channel_id, ...patch });
+        setSubmitEdit(true);
+    };
+
+
+
+
+    // put near your other helpers
+    const markNotInterested = async (row) => {
+    const id = row.channel_id;
+
+    // snapshot for rollback
+    const snapshot = channels;
+
+    // ✅ optimistic UI: remove from table immediately
+    setChannels(prev => prev.filter(r => r.channel_id !== id));
+
+    try {
+        await axios.patch(`/channel/${id}`, { not_interested: true });
+        toast.current?.show({
+        severity: 'success',
+        summary: 'Hidden',
+        detail: 'Marked as not interested',
+        life: 1500
+        });
+    } catch (err) {
+        // 🔁 rollback on failure
+        setChannels(snapshot);
+        toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Could not update interest flag',
+        life: 2500
+        });
+    }
+    };
+
+    const notInterestedBody = (row) => (
+    <PrimeButton
+        icon="pi pi-times"
+        rounded
+        text
+        severity="danger"
+        aria-label="Not interested"
+        className="ni-btn"
+        // tooltip="Hide this channel"
+        onClick={() => markNotInterested(row)}
+    />
+    );
+
+
+        // ✅ One tiny handler for all cells
+    const onCellEditComplete = async (e) => {
+    const { rowData, field, newValue, value: oldValue } = e; // value = old value
+    const channel_id = rowData.channel_id;
+
+    // No-op if it didn't change
+    if ((oldValue ?? '') === (newValue ?? '')) return;
+
+    // Optimistic UI
+    setChannels(prev =>
+        prev.map(r => (r.channel_id === channel_id ? { ...r, [field]: newValue } : r))
+    );
+
+    try {
+        // Persist to backend
+        await patchChannel(channel_id, { [field]: newValue });
+        toast.current?.show({
+        severity: 'success',
+        summary: 'Saved',
+        detail: `${field} updated`,
+        life: 1500
+        });
+    } catch (err) {
+        // Roll back on error
+        setChannels(prev =>
+        prev.map(r => (r.channel_id === channel_id ? { ...r, [field]: oldValue } : r))
+        );
+        toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Could not save change',
+        life: 2500
+        });
+        // prevent PrimeReact from finalizing edit if you want:
+        // e.originalEvent?.preventDefault?.();
+    }
+    };
+
+
+// === helper to persist channel changes ===
+    const patchChannel = async (channel_id, patch) => {
+    try {
+        await axios.patch(`${baseUrl}:5023/channel/${channel_id}`, patch);
+        toast.current?.show({
+        severity: "success",
+        summary: "Saved",
+        detail: "Channel updated",
+        life: 2000
+        });
+    } catch (e) {
+        toast.current?.show({
+        severity: "error",
+        summary: "Error",
+        detail: "Could not save channel",
+        life: 3000
+        });
+        throw e;
+    }
     };
 
     const textEditor = (options) => {
@@ -1371,15 +1612,29 @@ function Dashboard(){
          } />;
     };
 
+
     const header = (
-            <div className="flex justify-content-between">
-                <h4 className="m-2">Manage Leads</h4>
-                <span className="p-input-icon-left">
-                    <i className="pi pi-search" />
-                    <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search..." />
-                </span>
-            </div>
+    <div className="flex justify-content-between flex-wrap gap-3">
+        <h4 className="m-2">Manage Leads</h4>
+        <div className="flex gap-3">
+        {windowSelector}
+        <span className="p-input-icon-left">
+            <i className="pi pi-search" />
+            <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search..." />
+        </span>
+        </div>
+    </div>
     );
+
+    // const header = (
+    //         <div className="flex justify-content-between">
+    //             <h4 className="m-2">Manage Leads</h4>
+    //             <span className="p-input-icon-left">
+    //                 <i className="pi pi-search" />
+    //                 <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search..." />
+    //             </span>
+    //         </div>
+    // );
 
     useEffect(() => {
         console.log(deleteData)
@@ -1700,6 +1955,27 @@ function Dashboard(){
     return <span title={text}>{text}</span>;
     };
 
+        // tiny numeric editor (allows blank -> null)
+    const numberEditor = (options) => (
+    <InputText
+        type="number"
+        value={options.value ?? ""}
+        onChange={(e) => {
+        const v = e.target.value;
+        options.editorCallback(v === "" ? null : Number(v));
+        }}
+        style={{ width: 120 }}
+    />
+    );
+
+    // show raw values or "—"
+    const rpmLowBody  = (row) => (Number.isFinite(row.rpm_low)  ? row.rpm_low  : "—");
+    const rpmHighBody = (row) => (Number.isFinite(row.rpm_high) ? row.rpm_high : "—");
+
+    // Add these two columns near your RPM display column
+
+
+
     // const fmtMoney = (n) => {
     // if (!Number.isFinite(n)) return null;
     // // show integers without decimals; otherwise one decimal
@@ -1753,12 +2029,61 @@ function Dashboard(){
 
         
     }
+// imports
+
+    // pretty display: "Oct 08, 2025" (and keep your "x months ago" if you like)
+    const firstUploadPretty = (row) => {
+    const v = row.first_upload_date;
+    if (!v) return "—";
+    const d = new Date(v);
+    return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    };
+
+    // cell editor (Calendar)
+    const firstUploadEditor = (options) => (
+    <Calendar
+        value={options.value ? new Date(options.value) : null}
+        onChange={(e) => options.editorCallback(e.value)}   // e.value is a Date
+        showIcon
+        dateFormat="M dd, yy"   // visual only
+        touchUI
+    />
+    );
+
+    // small helper: convert to ISO for the API
+// helpers
+    const toBoolNull = (v) => (v === true || v === 'true') ? true
+    : (v === false || v === 'false') ? false
+    : null;
+
+    const monetizedOptions = [
+    { label: '?? (Unknown)', value: null },
+    { label: '$$ (Yes)',    value: true },
+    { label: '👎 (No)',     value: false },
+    ];
+
+    // editor used by the Column
+    const monetizedEditor = (options) => (
+    <Dropdown
+        value={toBoolNull(options.value)}
+        options={monetizedOptions}
+        optionLabel="label"
+        optionValue="value"
+        onChange={(e) => options.editorCallback(e.value)}   // send true/false/null
+        placeholder="Select…"
+        appendTo={document.body}     // avoids z-index issues (panel behind table)
+        className="w-12rem"
+    />
+    );
+
+    
 
 
     return <div className="App">
             <Toast ref={toast} />
             <div className="sideby"> 
-                <Smallinforectangle name="Good Leads" number={totalRecords} />
+                {/* <Smallinforectangle name="Good Leads" number={totalRecords} /> */}
+                <Smallinforectangle name="Good Leads" number={windowCount} />
                 <Smallinforectangle name="videos" number={vidCount}/>
                 <Smallinforectangle name="channel" number={channelCount}/>
 
@@ -1796,18 +2121,27 @@ function Dashboard(){
                     <Column style={{whiteSpace: "nowrap"}} body={actionBodyTemplate} exportable={false}></Column>
                 </DataTable> */}
                 <DataTable
-                  /* 👇 add these */
+                /* 👇 add these */
+                ref={dt}
+                header={header}
+                filters={filters}
+                filterDisplay="menu"                // enables filtering; menu UI will stay hidden if we don't render filter UI
+                onFilter={(e) => setWindowCount(e.filteredValue?.length ?? channels.length)} // capture filtered length
                 paginator
                 rows={50}                                 // page size
-                rowsPerPageOptions={[25, 50, 100, 200]}    // user choices
-                pageLinkSize={5}                           // how many page links to show
+                rowsPerPageOptions={[25, 50, 100, 200]}   // user choices
+                pageLinkSize={5}                          // how many page links to show
                 paginatorTemplate="RowsPerPageDropdown FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport"
-                currentPageReportTemplate="Showing {first}–{last} of {totalRecords}"
-                
+                currentPageReportTemplate={`Showing {first}–{last} of ${windowCount}`}
+                editMode="row"
+                onRowEditComplete={onRowEditComplete}     // ✅ row event
                 value={channels}
                 dataKey="channel_id"
                 expandedRows={expandedRows}
                 onRowToggle={(e) => setExpandedRows(e.data)}
+                /* 👇 controlled pagination so we can jump to page 1 on filter change */
+                first={first}
+                onPage={(e) => setFirst(e.first)}
                 rowExpansionTemplate={(row) => (
                     <div className="p-3">
                     <h5>Top Videos for {row.channel_name}</h5>
@@ -1824,20 +2158,26 @@ function Dashboard(){
                 <Column expander={allowExpansion} style={{ width: '5rem' }} />
                 {/* ...your other columns... */}
                 <Column field="channel_name" body={channelLinkBody} header="Channel" />
-                <Column field="is_monetized" body={monetizationBody} style={{ width: "8rem" }} header="Monetized" />
+                <Column rowEditor headerStyle={{ width: '8rem' }} bodyStyle={{ textAlign: 'center' }} />
+                <Column field="is_monetized" body={monetizationBody}  editor={monetizedEditor} style={{ width: "8rem" }} header="Monetized" />
                 <Column header="Top Video" body={heroThumbBody} style={{ width: "8rem" }} />
-                <Column field="Top Views" body={topVidViewsBody} header="TopVid Views" sortable/>
+                {/* <Column field="Top Views" body={topVidViewsBody} header="TopVid Views" sortable/> */}
+                <Column field="topVidViews" header="TopVid Views" body={topVidViewsBody} sortable filter dataType="numeric" />
+
                 <Column field="sub_count" header="Subs" />
                 <Column field="views_last_month" header="Month Views" sortable/>
-                <Column field="revenue_last_month" header="Rev Last Mon" sortable/>
-                <Column header="RPM" body={rpmBody} sortable/>
-
+                <Column field="revenue_last_month" header="Rev Last Mon" editor={(options) => textEditor(options)} sortable/>
+                {/* <Column header="RPM" body={rpmBody} sortable/> */}
+                <Column field="rpm_low" header="RPM Low" body={rpmLowBody} editor={numberEditor} sortable />
+                <Column field="rpm_high" header="RPM High" body={rpmHighBody} editor={numberEditor} sortable />
                 <Column field="avg_monthly_uploads" header="Monthly Uploads" sortable/>
-                <Column field="first_upload_date" body={firstUploadTextBody} header="First Upload" sortable/>
-                <Column field="claimed_by" header="Clamed By" />
+                <Column field="first_upload_date" body={firstUploadTextBody}  editor={firstUploadEditor} header="First Upload" filter showFilterMenu={false} sortable/>
+                {/* <Column field="claimed_by" header="Clamed By" /> */}
 
                 {/* <Column field="channel_url" header="URL" /> */}
+                <Column header="Hide" body={notInterestedBody} style={{ width: '10rem' }} />
                 <Column header="Drive" body={driveButtonBody} exportable={false} style={{ width: "6rem", textAlign: "center" }} />
+                {/* <Column rowEditor headerStyle={{ width: '8rem' }} bodyStyle={{ textAlign: 'center' }} /> */}
 
 
                 </DataTable>
