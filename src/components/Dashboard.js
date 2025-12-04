@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef} from 'react';
+import React, {useEffect, useState, useRef, useMemo} from 'react';
 import Footer from './Footer';
 import { Smallinforectangle } from './Infoblock';
 import axios from 'axios';
@@ -23,6 +23,8 @@ import { baseUrl } from '../constants/globals';
 import { Calendar } from 'primereact/calendar';
 import { Dropdown } from 'primereact/dropdown';
 import { FilterMatchMode, FilterService } from 'primereact/api';
+// import { Col } from 'sequelize/lib/utils';
+import { MultiSelect } from 'primereact/multiselect';
 
 // PrimeReact custom operator: keep rows whose date is within N months from today
 FilterService.register('withinMonths', (value, filter /* N months */) => {
@@ -67,8 +69,10 @@ function Dashboard(){
     const [first, setFirst] = useState(0); // index of first row on the current page
     const [monthWindow, setMonthWindow] = useState(null); // null | 1 | 2 | 3 | 4
     const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    first_upload_date: { value: null, matchMode: 'withinMonths' } // 👈 our custom rule
+        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        first_upload_date: { value: null, matchMode: 'withinMonths' }, // 👈 our custom rule
+        search_term: { value: null, matchMode: FilterMatchMode.EQUALS }
+
     });
     const [windowCount, setWindowCount] = useState(0); // for the stat card/report
 
@@ -254,6 +258,104 @@ function Dashboard(){
     }
     }
 
+    async function createEditorsBriefingDocInFolder(videoFolderId) {
+        const gapi = window.gapi;
+
+        const briefingTitle = "Editors Briefing";
+        const valueStatement =
+            "No nudity, always keep it family friendly. " +
+            "No bad language. Keep it tasteful always and avoid anything sexually suggestive.";
+        const instructionsHeading = "Instructions";
+
+        const fullText =
+            `${briefingTitle}\n\n` +
+            `${valueStatement}\n\n` +
+            `${instructionsHeading}\n`;
+
+        // 1) Create the doc
+        const docRes = await gapi.client.docs.documents.create({
+            resource: { title: briefingTitle },
+        });
+        const documentId = docRes.result.documentId;
+
+        const titleLen = briefingTitle.length;
+        const valueLen = valueStatement.length;
+        const instructionsLen = instructionsHeading.length;
+
+        // 2) Insert text + formatting
+        await gapi.client.docs.documents.batchUpdate({
+            documentId,
+            resource: {
+            requests: [
+                // Insert all the text at the beginning
+                {
+                insertText: {
+                    location: { index: 1 },
+                    text: fullText,
+                },
+                },
+                // Title style for "Editors Briefing"
+                {
+                updateParagraphStyle: {
+                    range: {
+                    startIndex: 1,
+                    endIndex: 1 + titleLen + 1, // include newline
+                    },
+                    paragraphStyle: { namedStyleType: "TITLE" },
+                    fields: "namedStyleType",
+                },
+                },
+                // Italic value statement
+                {
+                updateTextStyle: {
+                    range: {
+                    startIndex: 1 + titleLen + 2, // after "\n\n"
+                    endIndex: 1 + titleLen + 2 + valueLen,
+                    },
+                    textStyle: { italic: true },
+                    fields: "italic",
+                },
+                },
+                // Heading style for "Instructions"
+                {
+                updateParagraphStyle: {
+                    range: {
+                    startIndex:
+                        1 + titleLen + 2 + valueLen + 2, // after value + "\n\n"
+                    endIndex:
+                        1 +
+                        titleLen +
+                        2 +
+                        valueLen +
+                        2 +
+                        instructionsLen +
+                        1, // include newline
+                    },
+                    paragraphStyle: { namedStyleType: "HEADING_2" },
+                    fields: "namedStyleType",
+                },
+                },
+            ],
+            },
+        });
+
+        // 3) Move doc into 03_Video folder
+        const meta = await gapi.client.drive.files.get({
+            fileId: documentId,
+            fields: "parents",
+        });
+        const previousParents = (meta.result.parents || []).join(",");
+
+        await gapi.client.drive.files.update({
+            fileId: documentId,
+            addParents: videoFolderId,
+            removeParents: previousParents || undefined,
+            fields: "id,parents",
+        });
+
+        return documentId;
+        }
+
     // Move a file into a folder (Drive v3 best practice: add new parent, remove previous)
     // Move file to a folder (unchanged helper)
     async function moveFileToFolder(fileId, newParentId) {
@@ -426,15 +528,24 @@ function Dashboard(){
         if (haveHeaders) return;
 
         const headers = [[
-            "project_id","slug","title","status","publish_date",
-            "channel_id","channel_folder_id","project_folder_id",
-            "script_doc_id","thumb_file_id","video_file_id",
-            "brief_doc_id","project_sheet_id","youtube_video_id","sheet_row_index"
-        ]];
+        "project_id","slug","title","status",
+        "publish_date","publish_time","description",
+        "channel_id","channel_folder_id","project_folder_id",
+        "script_doc_id","thumb_file_id","video_file_id",
+        "brief_doc_id","project_sheet_id","youtube_video_id",
+        "sheet_row_index"
+    ]];
+
+        // const headers = [[
+        //     "project_id","slug","title","status","publish_date",
+        //     "channel_id","channel_folder_id","project_folder_id",
+        //     "script_doc_id","thumb_file_id","video_file_id",
+        //     "brief_doc_id","project_sheet_id","youtube_video_id","sheet_row_index"
+        // ]];
 
         await gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: "A1:O1",
+            range: "A1:Q1",
             valueInputOption: "RAW",
             resource: { values: headers },
         });
@@ -652,6 +763,9 @@ function Dashboard(){
     const videoFolderId  = await makeSub("03_Video");
     await makeSub("04_Assets");
 
+    // NEW: Editors Briefing doc inside 03_Video
+    const editorsDocId = await createEditorsBriefingDocInFolder(videoFolderId);
+
     // Ensure status buckets and put the new project into 1_Queue
     const { currentId, queueId, archiveId } = await ensureProjectBuckets(projectsFolderId);
     await moveProjectToBucket(proj.result.id, queueId);
@@ -670,28 +784,35 @@ function Dashboard(){
     // I script_doc_id | J thumb_file_id | K video_file_id
     // L brief_doc_id | M project_sheet_id | N youtube_video_id | O sheet_row_index
     const rowValues = [
-        projectId,               // A
-        slug,                    // B
-        baseName,                // C
-        "New",                   // D
-        "",                      // E
-        channelRow.channel_id,   // F
-        channelFolderId,         // G
-        proj.result.id,          // H
-        briefDocId,              // I
-        "",                      // J (will be auto-filled later)
-        "",                      // K (will be auto-filled later)
-        briefDocId,              // L
-        sheetId,                 // M
-        "",                      // N
-        ""                       // O (appendTrackerRow will set)
+        projectId, slug, baseName, "New",
+        "", "", "",   // publish_date, publish_time, description
+        channelRow.channel_id, channelFolderId, proj.result.id,
+        briefDocId, "", "", briefDocId, sheetId, "", ""
     ];
+    // const rowValues = [
+    //     projectId,               // A
+    //     slug,                    // B
+    //     baseName,                // C
+    //     "New",                   // D
+    //     "",                      // E
+    //     channelRow.channel_id,   // F
+    //     channelFolderId,         // G
+    //     proj.result.id,          // H
+    //     briefDocId,              // I
+    //     "",                      // J (will be auto-filled later)
+    //     "",                      // K (will be auto-filled later)
+    //     briefDocId,              // L
+    //     sheetId,                 // M
+    //     "",                      // N
+    //     ""                       // O (appendTrackerRow will set)
+    // ];
     const sheetRowIndex = await appendTrackerRow(trackerSheetId, rowValues);
 
     return {
         projectId,
         projectFolderId: proj.result.id,
         scriptFolderId,
+        editorsDocId,          // 👈 NEW
         thumbFolderId,
         videoFolderId,
         briefDocId,
@@ -703,73 +824,6 @@ function Dashboard(){
     }
 
 
-    // async function createProject(channelRow, baseName) {
-    // const gapi = window.gapi;
-    // const { projectsFolderId, trackerSheetId, channelFolderId } = await ensureChannelRootAndTracker(channelRow, baseName);
-
-    // const slug = slugify(baseName);
-    // const projectId = `${today()}_${slug}`;
-    // const projectFolderName = projectId;
-
-    // // make project folder
-    // const proj = await gapi.client.drive.files.create({
-    //     resource: {
-    //     name: projectFolderName,
-    //     mimeType: "application/vnd.google-apps.folder",
-    //     parents: [projectsFolderId],
-    //     appProperties: { channel_id: String(channelRow.channel_id), project_id: projectId, slug },
-    //     },
-    //     fields: "id,name",
-    // });
-
-    // // subfolders
-    // const makeSub = async (name) => {
-    //     const f = await gapi.client.drive.files.create({
-    //     resource: { name, mimeType: "application/vnd.google-apps.folder", parents: [proj.result.id] },
-    //     fields: "id,name",
-    //     });
-    //     return f.result.id;
-    // };
-    // const scriptFolderId   = await makeSub("01_Script");
-    // const thumbFolderId    = await makeSub("02_Thumbnail");
-    // const videoFolderId    = await makeSub("03_Video");
-    // await makeSub("04_Assets");
-
-    // // create Doc brief in Script folder
-    // const briefTitle = baseName; // or `${baseName} — Brief`
-    // const docId = await createDocInFolder(scriptFolderId, channelRow, briefTitle);
-
-    // // optional: create a per-project sheet in the project folder
-    // const sheetTitle = `${baseName} — Sheet`;
-    // const sheetId = await createSheetInFolder(proj.result.id, channelRow, sheetTitle); // your improved function
-
-    // // write a row in tracker
-    // const values = [[
-    //     projectId, slug, baseName, "", "", "", "New",
-    //     channelRow.channel_id, channelFolderId, proj.result.id,
-    //     docId, "", "", docId, ""
-    // ]];
-    // await gapi.client.sheets.spreadsheets.values.append({
-    //     spreadsheetId: trackerSheetId,
-    //     range: "A:A",
-    //     valueInputOption: "RAW",
-    //     insertDataOption: "INSERT_ROWS",
-    //     resource: { values },
-    // });
-
-    // // share project folder with your freelancer group(s) (set your group email)
-    // // await gapi.client.drive.permissions.create({ fileId: proj.result.id, resource: { role: "writer", type: "group", emailAddress: "thumbs-team@yourdomain.com" }, sendNotificationEmail: false });
-
-    // return {
-    //     projectId,
-    //     projectFolderId: proj.result.id,
-    //     scriptFolderId,
-    //     thumbFolderId,
-    //     videoFolderId,
-    //     briefDocId: docId,
-    //     sheetId
-    // };
-    // }
 
 
 
@@ -1023,97 +1077,117 @@ function Dashboard(){
         if (hitDatabase){
             console.log(`Pulling Database Leads:`)
             axios.get(`${baseUrl}/dashboard`)
-                .then((dbResult) => {
-                    // always log the data, not the axios wrapper
-                    console.log("dashboard payload:", dbResult.data);
+                // .then((dbResult) => {
+                //     // always log the data, not the axios wrapper
+                //     console.log("dashboard payload:", dbResult.data);
 
-                    const payload = dbResult.data;
+                //     const payload = dbResult.data;
 
-                    // items can be either payload.items (new shape) or payload (legacy array)
-                    const items = Array.isArray(payload?.items)
-                        ? payload.items
-                        : Array.isArray(payload)
-                        ? payload
-                        : [];
+                //     // items can be either payload.items (new shape) or payload (legacy array)
+                //     const items = Array.isArray(payload?.items)
+                //         ? payload.items
+                //         : Array.isArray(payload)
+                //         ? payload
+                //         : [];
 
-                    // counts from API, with fallbacks
-                    const vidTotal   = payload?.vid_count ?? items.length;
-                    const chanTotal = payload?.channel_count ?? items.length;
-                        // pull counts if present, else fall back to item length
+                //     // counts from API, with fallbacks
+                //     const vidTotal   = payload?.vid_count ?? items.length;
+                //     const chanTotal = payload?.channel_count ?? items.length;
+                //         // pull counts if present, else fall back to item length
 
-                    setVidCount(vidTotal)
-                    setChannelCount(chanTotal)
+                //     setVidCount(vidTotal)
+                //     setChannelCount(chanTotal)
                     
 
-                    const raw = Array.isArray(dbResult.data?.items) ? dbResult.data?.items : [];
-                    const rows = raw.map((r, i) => {
-                        const id = String(r.channel_id ?? i);
-                        const hero = getHeroVideo(r);
-                        const topVidViews = hero ? Number(hero.views ?? 0) : null;
-                        // console.log('topVidViews:', topVidViews);
-                        // console.log('row:', r.channel_name, 'hero:', hero);
+                //     const raw = Array.isArray(dbResult.data?.items) ? dbResult.data?.items : [];
+                //     const rows = raw.map((r, i) => {
+                //         const id = String(r.channel_id ?? i);
+                //         const hero = getHeroVideo(r);
+                //         const topVidViews = hero ? Number(hero.views ?? 0) : null;
+                //         // console.log('topVidViews:', topVidViews);
+                //         // console.log('row:', r.channel_name, 'hero:', hero);
 
-                        return {
-                            ...r,                 // copy all original row fields
-                            channel_id: id,       // ensure dataKey is a string
-                            heroVideo: hero,      // stash the most-viewed video object
-                            heroThumbUrl: hero?.thumb_url, // convenience field for the thumbnail
-                            topVidViews,
+                //         return {
+                //             ...r,                 // copy all original row fields
+                //             channel_id: id,       // ensure dataKey is a string
+                //             heroVideo: hero,      // stash the most-viewed video object
+                //             heroThumbUrl: hero?.thumb_url, // convenience field for the thumbnail
+                //             topVidViews,
 
-                                          // ✅ normalize so editors/bodies always see boolean/null
-                            is_monetized: toBoolNull(r.is_monetized),
-                        };
+                //                           // ✅ normalize so editors/bodies always see boolean/null
+                //             is_monetized: toBoolNull(r.is_monetized),
+                //             interested: r.interested ?? false,
+                //             not_interested: r.not_interested ?? false,
+                //         };
 
-                    });
+                //     });
 
-                    setTotalRecords(payload?.items.length); // ← NEW
+                //     setTotalRecords(payload?.items.length); // ← NEW
 
-                    setChannels(rows);
-                    setWindowCount(rows.length);
+                //     setChannels(rows);
+                //     setWindowCount(rows.length);
+                //     // interested: r.interested ?? false,
+                //     // not_interested: r.not_interested ?? false,
+                //     const initialExpanded = rows.reduce((acc, row) => {
+                //     if (allowExpansion(row)) acc[row.channel_id] = true;
+                //     return acc;
+                //     }, {});
+                //     setExpandedRows({});
 
-                    const initialExpanded = rows.reduce((acc, row) => {
+                //     // (optional) quick sanity logs
+                //     console.log("channels:", rows);
+                //     console.log("expandedRows:", initialExpanded);
+                // })
+                .then((dbResult) => {
+                console.log("dashboard payload:", dbResult.data);
+
+                const payload = dbResult.data;
+
+                // 1) Normalize items (works if API returns { items: [...] } OR just [...])
+                const items = Array.isArray(payload?.items)
+                    ? payload.items
+                    : Array.isArray(payload)
+                    ? payload
+                    : [];
+
+                // 2) Use items for counts
+                const vidTotal   = payload?.vid_count ?? items.length;
+                const chanTotal  = payload?.channel_count ?? items.length;
+
+                setVidCount(vidTotal);
+                setChannelCount(chanTotal);
+                setTotalRecords(items.length);        // ✅ FIXED (no payload?.items.length)
+
+                // 3) Build rows from items (NOT from dbResult.data?.items anymore)
+                const rows = items.map((r, i) => {
+                    const id   = String(r.channel_id ?? i);
+                    const hero = getHeroVideo(r);
+                    const topVidViews = hero ? Number(hero.views ?? 0) : null;
+
+                    return {
+                    ...r,
+                    channel_id: id,
+                    heroVideo: hero,
+                    heroThumbUrl: hero?.thumb_url,
+                    topVidViews,
+                    is_monetized: toBoolNull(r.is_monetized),
+                    interested: r.interested ?? false,
+                    not_interested: r.not_interested ?? false,
+                    };
+                });
+
+                setChannels(rows);
+                setWindowCount(rows.length);
+
+                const initialExpanded = rows.reduce((acc, row) => {
                     if (allowExpansion(row)) acc[row.channel_id] = true;
                     return acc;
-                    }, {});
-                    setExpandedRows({});
-
-                    // (optional) quick sanity logs
-                    console.log("channels:", rows);
-                    console.log("expandedRows:", initialExpanded);
-                    // setLeads(dbResult.data.leadInfo)
-                    // setTotalLeadCount(dbResult.data.leadInfo.length)
-                    // const { userInfo, leadInfo, industryName, industryNum, backgroundColor, hoverBackgroundColor, locationName, locationNum, locationbackgroundColor, locationhoverBackgroundColor, statusName, statusNum, statusbackgroundColor, statushoverBackgroundColor} = dbResult.data
-
-                    // setLabels(industryName)
-                    // setIndustryData(industryNum)
-                    // setBackgroundColorInd(backgroundColor)
-                    // setHoverBackgroundColorInd(hoverBackgroundColor)
-
-                    // setLabels2(locationName)
-                    // setLocationData(locationNum)
-                    // setBackgroundColorLoc(locationbackgroundColor)
-                    // setHoverBackgroundColorLoc(locationhoverBackgroundColor)
-
-                    // setLabels3(statusName)
-                    // setStatusData(statusNum)
-                    // setBackgroundColorSta(statusbackgroundColor)
-                    // setHoverBackgroundColorSta(statushoverBackgroundColor)
-
-                    // userInfo.industry = userInfo.industry.join(", ")
-                    // userInfo.location = userInfo.location.join(", ")
-                    // setUserInformation(userInfo)
-
-                    // let emailCounter = 0;
-                    // let emailVerCounter = 0;
-                    // for (const obj of leadInfo) {
-                    //     if (obj.email !== '') emailCounter++;
-                    //     if (obj.email_verify !== null && obj.email_verify.state === 'deliverable') emailVerCounter++
-                    // }
-                    // setEmailVerifyCount(emailVerCounter)
-                    // setEmailCount(emailCounter)
-                    // console.log("emailCounter", emailCounter);
+                }, {});
+                setExpandedRows({});
                 })
-                .catch(dbError=>console.log(dbError.data))
+                .catch((err) => {
+                    console.error("Dashboard load failed:", err);
+                })
 
             setHitDatabase(false)
             // initFilters();
@@ -1129,35 +1203,58 @@ function Dashboard(){
     { label: 'Last 2 months', value: 2 },
     { label: 'Last 3 months', value: 3 },
     { label: 'Last 4 months', value: 4 },
+    { label: 'Interested', value: 'INTERESTED' },   // 👈 new
+
     ];
 
     // const [first, setFirst] = useState(0); // make sure this exists at top-level
 
     const windowSelector = (
     <div className="flex items-center gap-2">
-        <span className="text-sm">Window:</span>
+        <span className="text-sm">Date Filter:</span>
         <Dropdown
         value={monthWindow}
         options={monthOptions}
         optionLabel="label"
         optionValue="value"
+        // onChange={(e) => {
+        //     setMonthWindow(e.value);
+
+        //     // update DataTable filters for custom rule
+        //     setFilters((f) => ({
+        //     ...f,
+        //     first_upload_date: { ...f.first_upload_date, value: e.value },
+        //     }));
+
+        //     // go back to page 1 (PrimeReact has no resetPage)
+        //     setFirst(0);
+
+        //     // nudge table filter with our custom operator
+        //     if (dt.current?.filter) {
+        //     dt.current.filter(e.value, 'first_upload_date', 'withinMonths');
+        //     }
+        // }}
         onChange={(e) => {
-            setMonthWindow(e.value);
+        const v = e.value;
+        setMonthWindow(v);
 
-            // update DataTable filters for custom rule
-            setFilters((f) => ({
+        if (v === 'INTERESTED') {
+            setFilters(f => ({
             ...f,
-            first_upload_date: { ...f.first_upload_date, value: e.value },
+            // clear the month window
+            first_upload_date: { ...f.first_upload_date, value: null },
+            // turn on interested filter
+            interested: { value: true, matchMode: FilterMatchMode.EQUALS }
             }));
-
-            // go back to page 1 (PrimeReact has no resetPage)
-            setFirst(0);
-
-            // nudge table filter with our custom operator
-            if (dt.current?.filter) {
-            dt.current.filter(e.value, 'first_upload_date', 'withinMonths');
-            }
+        } else {
+            setFilters(f => ({
+            ...f,
+            interested: { value: null, matchMode: FilterMatchMode.EQUALS },  // clear interested filter
+            first_upload_date: { ...f.first_upload_date, value: v }          // keep your withinMonths rule
+            }));
+        }
         }}
+
         className="w-12rem"
         placeholder="All time"
         appendTo={document.body}
@@ -1205,6 +1302,7 @@ function Dashboard(){
 
         setFilters(_filters);
         setGlobalFilterValue(value);
+        
     };
 
     const initFilters = () => {
@@ -1542,6 +1640,96 @@ function Dashboard(){
         onClick={() => markNotInterested(row)}
     />
     );
+
+    // mark as INTERESTED (keeps row visible)
+    // keep the SAME name: markInterested
+    const markInterested = async (row) => {
+    const id = row.channel_id;
+    const next = !Boolean(row.interested); // flip current value
+
+    // optimistic UI
+    setChannels(prev =>
+        prev.map(r => (r.channel_id === id ? { ...r, interested: next } : r))
+    );
+
+    try {
+        await axios.patch(`${baseUrl}/channel/${id}`, { interested: next });
+        toast.current?.show({
+        severity: 'success',
+        summary: 'Saved',
+        detail: next ? 'Marked as interested' : 'Removed interested',
+        life: 1500
+        });
+    } catch (err) {
+        // rollback on failure
+        setChannels(prev =>
+        prev.map(r => (r.channel_id === id ? { ...r, interested: !next } : r))
+        );
+        toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Could not update interested flag',
+        life: 2500
+        });
+    }
+    };
+
+    // keep the SAME name: interestedBody (if you’re already using it)
+    const interestedBody = (row) => (
+    <PrimeButton
+        icon={row.interested ? 'pi pi-star-fill' : 'pi pi-star'}
+        rounded
+        text
+        severity="success"
+        aria-label="Interested"
+        onClick={() => markInterested(row)}
+        tooltip={row.interested ? 'Unmark interested' : 'Mark interested'}
+    />
+    );
+
+    // const markInterested = async (row) => {
+    // const id = row.channel_id;
+
+    // // optimistic update: flip the flag in-place
+    // setChannels(prev =>
+    //     prev.map(r => (r.channel_id === id ? { ...r, interested: true } : r))
+    // );
+
+    // try {
+    //     await axios.patch(`${baseUrl}/channel/${id}`, { interested: true });
+    //     toast.current?.show({
+    //     severity: 'success',
+    //     summary: 'Saved',
+    //     detail: 'Marked as interested',
+    //     life: 1500
+    //     });
+    // } catch (err) {
+    //     // rollback on failure
+    //     setChannels(prev =>
+    //     prev.map(r => (r.channel_id === id ? { ...r, interested: row.interested ?? false } : r))
+    //     );
+    //     toast.current?.show({
+    //     severity: 'error',
+    //     summary: 'Error',
+    //     detail: 'Could not update interested flag',
+    //     life: 2500
+    //     });
+    // }
+    // };
+
+    // const interestedBody = (row) => (
+    // <PrimeButton
+    //     icon="pi pi-star"
+    //     rounded
+    //     text
+    //     severity="success"
+    //     aria-label="Interested"
+    //     onClick={() => markInterested(row)}
+    //     tooltip="Mark as interested"
+    // />
+    // );
+
+    // (you already have notInterestedBody)
 
 
         // ✅ One tiny handler for all cells
@@ -2076,7 +2264,30 @@ function Dashboard(){
     />
     );
 
-    
+    //CODE FOR THE NICHE DROPDOWN BUTTON ON THE DATATABLE
+    // Title-case helper
+    const toTitle = (s) =>
+    (s || '').replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+
+    const nicheOptions = React.useMemo(
+    () => [...new Set((channels || []).map(r => r?.search_term).filter(Boolean))]
+            .map(v => ({ label: v.replace(/\b\w/g, c => c.toUpperCase()), value: v })),
+    [channels]
+    );
+
+    const nicheRowFilter = (options) => (
+    <Dropdown
+        value={options.value}
+        options={nicheOptions}
+        onChange={(e) => options.filterApplyCallback(e.value)}
+        placeholder="Any"
+        showClear
+        className="p-column-filter w-12rem"
+        appendTo={document.body}
+    />
+    );
+
+
 
 
     return <div className="App">
@@ -2125,8 +2336,10 @@ function Dashboard(){
                 ref={dt}
                 header={header}
                 filters={filters}
-                filterDisplay="menu"                // enables filtering; menu UI will stay hidden if we don't render filter UI
-                onFilter={(e) => setWindowCount(e.filteredValue?.length ?? channels.length)} // capture filtered length
+                // filterDisplay="menu"                // enables filtering; menu UI will stay hidden if we don't render filter UI
+                // onFilter={(e) => setWindowCount(e.filteredValue?.length ?? channels.length)} // capture filtered length
+                onFilter={(e) => { setFilters(e.filters); setWindowCount(e.filteredValue?.length ?? channels.length); }}
+                filterDisplay="row"   // ⬅️ switch from "menu" to "row"
                 paginator
                 rows={50}                                 // page size
                 rowsPerPageOptions={[25, 50, 100, 200]}   // user choices
@@ -2159,11 +2372,21 @@ function Dashboard(){
                 {/* ...your other columns... */}
                 <Column field="channel_name" body={channelLinkBody} header="Channel" />
                 <Column rowEditor headerStyle={{ width: '8rem' }} bodyStyle={{ textAlign: 'center' }} />
-                <Column field="is_monetized" body={monetizationBody}  editor={monetizedEditor} style={{ width: "8rem" }} header="Monetized" />
+                <Column field="is_monetized" body={monetizationBody}  editor={monetizedEditor} style={{ width: "8rem" }} header="$$" />
                 <Column header="Top Video" body={heroThumbBody} style={{ width: "8rem" }} />
                 {/* <Column field="Top Views" body={topVidViewsBody} header="TopVid Views" sortable/> */}
-                <Column field="topVidViews" header="TopVid Views" body={topVidViewsBody} sortable filter dataType="numeric" />
-
+                <Column header="" body={notInterestedBody} style={{ width: '10rem' }} />
+                <Column header="" body={interestedBody} style={{ width: '10rem' }} />
+                <Column field="first_upload_date" body={firstUploadTextBody}  editor={firstUploadEditor} header="First Upload" 
+                // filter showFilterMenu={false} 
+                sortable/>
+                <Column field="topVidViews" header="TopVid Views" body={topVidViewsBody} sortable  dataType="numeric" />
+                <Column field="search_term" header="Niche"
+                        // filter
+                        // showFilterMenu={false}
+                        // filterMatchMode="equals"
+                        // filterElement={nicheRowFilter} /
+                        />
                 <Column field="sub_count" header="Subs" />
                 <Column field="views_last_month" header="Month Views" sortable/>
                 <Column field="revenue_last_month" header="Rev Last Mon" editor={(options) => textEditor(options)} sortable/>
@@ -2171,11 +2394,11 @@ function Dashboard(){
                 <Column field="rpm_low" header="RPM Low" body={rpmLowBody} editor={numberEditor} sortable />
                 <Column field="rpm_high" header="RPM High" body={rpmHighBody} editor={numberEditor} sortable />
                 <Column field="avg_monthly_uploads" header="Monthly Uploads" sortable/>
-                <Column field="first_upload_date" body={firstUploadTextBody}  editor={firstUploadEditor} header="First Upload" filter showFilterMenu={false} sortable/>
                 {/* <Column field="claimed_by" header="Clamed By" /> */}
 
                 {/* <Column field="channel_url" header="URL" /> */}
-                <Column header="Hide" body={notInterestedBody} style={{ width: '10rem' }} />
+                {/* <Column header="Hide" body={notInterestedBody} style={{ width: '10rem' }} />
+                <Column header="Save" body={interestedBody} style={{ width: '10rem' }} /> */}
                 <Column header="Drive" body={driveButtonBody} exportable={false} style={{ width: "6rem", textAlign: "center" }} />
                 {/* <Column rowEditor headerStyle={{ width: '8rem' }} bodyStyle={{ textAlign: 'center' }} /> */}
 
