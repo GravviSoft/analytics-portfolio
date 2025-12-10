@@ -184,7 +184,7 @@ import { InputText } from "primereact/inputtext";
 import { Message } from "primereact/message";
 import { useNavigate } from "react-router-dom"; // ✅ CRA/React Router
 
-const baseUrl = "http://localhost:3000"
+const baseUrl = process.env.REACT_APP_API_URL || "http://localhost:4005"
 
 // In CRA, env vars must be prefixed with REACT_APP_*
 

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: anxiously-backend
+    restart: unless-stopped
+    expose:
+      - "4005"
+    environment:
+      - PORT_NUM=4005
+      - CLIENT_URL=https://gravvisoft.com
+      - CONNECTION_STRING=${CONNECTION_STRING}
+    env_file:
+      - ./server/.env
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=https://gravvisoft.com
+    container_name: anxiously-frontend
+    restart: unless-stopped
+    expose:
+      - "3005"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    volumes:
+      - frontend-build:/usr/share/nginx/html
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: anxiously-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - frontend-build:/srv/frontend:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-network
+    environment:
+      - DOMAIN=gravvisoft.com
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  frontend-build:
+  caddy-data:
+  caddy-config:

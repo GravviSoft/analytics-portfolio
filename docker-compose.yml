@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: anxiously-backend
+    restart: unless-stopped
+    ports:
+      - "4005:4005"
+    environment:
+      - PORT_NUM=4005
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:3005}
+      - CONNECTION_STRING=${CONNECTION_STRING}
+    env_file:
+      - ./server/.env
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:4005}
+    container_name: anxiously-frontend
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
