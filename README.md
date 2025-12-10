@@ -29,17 +29,17 @@ Welcome to my Data Analysis Portfolio! This repository showcases my skills and e
 ## Table of Contents
 
 - [Project 1: YouTube Market Intelligence Platform](#project-1-youtube-market-intelligence-platform)
-- [Project 2: Project Title TBD](#project-2-project-title-tbd)
-- [Project 3: Project Title TBD](#project-3-project-title-tbd)
-- [Project 4: Project Title TBD](#project-4-project-title-tbd)
-- [Project 5: Project Title TBD](#project-5-project-title-tbd)
-- [Project 6: Project Title TBD](#project-6-project-title-tbd)
-- [Project 7: Project Title TBD](#project-7-project-title-tbd)
-- [Project 8: Project Title TBD](#project-8-project-title-tbd)
-- [Project 9: Project Title TBD](#project-9-project-title-tbd)
-- [Project 10: Project Title TBD](#project-10-project-title-tbd)
-- [Project 11: Project Title TBD](#project-11-project-title-tbd)
-- [Project 12: Project Title TBD](#project-12-project-title-tbd)
+- [Project 2: E-commerce Sales Dashboard](#project-2-e-commerce-sales-dashboard)
+- [Project 3: Customer Churn Prediction](#project-3-customer-churn-prediction)
+- [Project 4: Financial Market Analysis](#project-4-financial-market-analysis)
+- [Project 5: Social Media Sentiment Analysis](#project-5-social-media-sentiment-analysis)
+- [Project 6: Supply Chain Optimization](#project-6-supply-chain-optimization)
+- [Project 7: HR Analytics Dashboard](#project-7-hr-analytics-dashboard)
+- [Project 8: Healthcare Patient Analytics](#project-8-healthcare-patient-analytics)
+- [Project 9: Real Estate Market Analysis](#project-9-real-estate-market-analysis)
+- [Project 10: Customer Segmentation Analysis](#project-10-customer-segmentation-analysis)
+- [Project 11: Web Traffic Analytics](#project-11-web-traffic-analytics)
+- [Project 12: Fraud Detection System](#project-12-fraud-detection-system)
 
 ---
 
