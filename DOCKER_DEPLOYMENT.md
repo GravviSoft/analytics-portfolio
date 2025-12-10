@@ -62,8 +62,8 @@ sudo ufw status
 
 ```bash
 cd /var/www
-git clone <your-repo-url> anxiously-engaged-dashboard
-cd anxiously-engaged-dashboard
+git clone https://github.com/GravviSoft/analytics-portfolio.git analytics-portfolio
+cd analytics-portfolio
 ```
 
 ### 2. Create Production Environment File
@@ -102,7 +102,7 @@ CONNECTION_STRING=<your-database-connection-string>
 ### 3. Build and Start the Application
 
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 
 # Build and start in detached mode
 docker-compose --env-file .env.docker.local up -d --build
@@ -170,7 +170,7 @@ docker-compose down -v
 
 ### Update/Redeploy
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 
 # Pull latest code
 git pull
@@ -353,7 +353,7 @@ watch -n 5 docker stats
 
 ### Deploy/Update
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 git pull
 docker-compose --env-file .env.docker.local up -d --build
 ```

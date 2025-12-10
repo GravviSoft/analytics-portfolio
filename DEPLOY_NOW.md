@@ -25,8 +25,8 @@ sudo ufw enable
 ### 4. Clone Repository
 ```bash
 cd /var/www
-git clone https://github.com/GravviSoft/React_Anxiously_Engaged_Dashboard.git anxiously-engaged-dashboard
-cd anxiously-engaged-dashboard
+git clone https://github.com/GravviSoft/analytics-portfolio.git analytics-portfolio
+cd analytics-portfolio
 ```
 
 ### 5. Configure Environment
@@ -70,7 +70,7 @@ With:
 ## Update Later
 
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 git pull
 docker-compose -f docker-compose.ssl.yml up -d --build
 ```

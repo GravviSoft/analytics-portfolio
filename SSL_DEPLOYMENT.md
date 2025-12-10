@@ -58,8 +58,8 @@ sudo ufw status
 
 ```bash
 cd /var/www
-git clone <your-repo-url> anxiously-engaged-dashboard
-cd anxiously-engaged-dashboard
+git clone https://github.com/GravviSoft/analytics-portfolio.git analytics-portfolio
+cd analytics-portfolio
 
 # Copy SSL environment file for backend
 cd server
@@ -181,7 +181,7 @@ docker-compose -f docker-compose.ssl.yml down
 
 ### Update/Redeploy
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 git pull
 docker-compose -f docker-compose.ssl.yml up -d --build
 ```
@@ -401,7 +401,7 @@ For additional optimization:
 
 ### Deploy/Update
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 git pull
 docker-compose -f docker-compose.ssl.yml up -d --build
 ```
@@ -435,7 +435,7 @@ set -e
 echo "🚀 Deploying gravvisoft.com with SSL..."
 
 # Navigate to project
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 
 # Pull latest code
 echo "📥 Pulling latest code..."

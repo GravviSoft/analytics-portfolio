@@ -23,8 +23,8 @@ sudo ufw allow 4005
 ```bash
 # Clone repository
 cd /var/www
-git clone https://github.com/GravviSoft/React_Anxiously_Engaged_Dashboard.git
-cd anxiously-engaged-dashboard
+git clone https://github.com/GravviSoft/analytics-portfolio.git
+cd analytics-portfolio
 
 # Create server .env file
 cd server
@@ -66,7 +66,7 @@ curl http://148.113.192.64:4005/health
 
 ## Update Your App
 ```bash
-cd /var/www/anxiously-engaged-dashboard
+cd /var/www/analytics-portfolio
 git pull
 docker-compose --env-file .env.docker.local up -d --build
 ```
