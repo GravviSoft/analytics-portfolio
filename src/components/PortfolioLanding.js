@@ -8,10 +8,10 @@ const PortfolioLanding = () => {
     <div className="portfolio-landing">
       <section className="portfolio-hero">
         <p className="eyebrow">Portfolio</p>
-        <h1>Choose a project to open its dashboard</h1>
+        <h1>Explore Analytics Projects</h1>
         <p className="hero-copy">
-          A curated set of 12 projects, each with its own dashboard-style walkthrough. Pick a card to
-          dive into the live experience.
+          Interactive project pages showcasing technical skills in React, Node.js, Flask, PostgreSQL, Python, MongoDB, R, Tableau, Chart.js and more. Explore implementations, features, and real-world applications.
+
         </p>
         <div className="hero-actions">
           <a className="primary-link repo-chip" href="https://github.com/GravviSoft/analytics-portfolio" target="_blank" rel="noreferrer">
@@ -41,7 +41,7 @@ const PortfolioLanding = () => {
               ))}
             </div>
             <div className="project-card-footer">
-              <span>View dashboard</span>
+              <span>Explore Project</span>
               <span className="arrow">→</span>
             </div>
           </Link>

@@ -43,7 +43,7 @@ Welcome to my Data Analysis Portfolio! This repository showcases my skills and e
 
 ---
 
-## [Project 1: YouTube Market Intelligence Platform](https://github.com/GravviSoft/analytics-portfolio)
+## [Project 1: YouTube Market Intelligence Platform](https://github.com/GravviSoft/youtube-market-intelligence)
 
 **Live Demo:** [https://gravvisoft.com](https://gravvisoft.com)
 
