@@ -14,7 +14,10 @@ const PortfolioLanding = () => {
           dive into the live experience.
         </p>
         <div className="hero-actions">
-          <Link className="primary-link" to="/projects/youtube-market-intelligence">Open current dashboard</Link>
+          <a className="primary-link repo-chip" href="https://github.com/GravviSoft/analytics-portfolio" target="_blank" rel="noreferrer">
+            <span className="repo-logo" aria-hidden="true" />
+            <span>View on GitHub</span>
+          </a>
           <Link className="ghost-link" to="/about">Skip to about me</Link>
         </div>
       </section>
