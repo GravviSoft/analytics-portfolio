@@ -15,8 +15,6 @@ services:
       - "4005"
     environment:
       - PORT_NUM=4005
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:3005}
-      - CONNECTION_STRING=${CONNECTION_STRING}
     env_file:
       - ./server/.env
     networks:
