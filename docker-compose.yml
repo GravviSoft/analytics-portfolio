@@ -29,12 +29,12 @@ services:
       start_period: 40s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.main-back.rule=Host(`gravvisoft.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.main-back.rule=Host(`gravvisoft.com`,`www.gravvisoft.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.main-back.entrypoints=websecure"
       - "traefik.http.routers.main-back.tls.certresolver=letsencrypt"
       - "traefik.http.routers.main-back.service=main-back-svc"
       - "traefik.http.services.main-back-svc.loadbalancer.server.port=4005"
-      - "traefik.http.routers.main-back-web.rule=Host(`gravvisoft.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.main-back-web.rule=Host(`gravvisoft.com`,`www.gravvisoft.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.main-back-web.entrypoints=web"
       - "traefik.http.routers.main-back-web.middlewares=redirect-to-https,main-api-strip"
       - "traefik.http.routers.main-back.middlewares=main-api-strip"
@@ -56,12 +56,12 @@ services:
       - proxy-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.main.rule=Host(`gravvisoft.com`)"
+      - "traefik.http.routers.main.rule=Host(`gravvisoft.com`,`www.gravvisoft.com`)"
       - "traefik.http.routers.main.entrypoints=websecure"
       - "traefik.http.routers.main.tls.certresolver=letsencrypt"
       - "traefik.http.routers.main.service=main-svc"
       - "traefik.http.services.main-svc.loadbalancer.server.port=80"
-      - "traefik.http.routers.main-web.rule=Host(`gravvisoft.com`)"
+      - "traefik.http.routers.main-web.rule=Host(`gravvisoft.com`,`www.gravvisoft.com`)"
       - "traefik.http.routers.main-web.entrypoints=web"
       - "traefik.http.routers.main-web.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
