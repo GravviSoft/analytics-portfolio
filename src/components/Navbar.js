@@ -36,7 +36,7 @@ function Navbar() {
     <nav className="navbar">
       <a className="navbar-brand" href="/public/index.html">
         <img src={logo} className="App-logo" alt="" />
-        <Link to="/">Beau's Data Analytics Portfolio</Link>
+        <Link to="/">Beau Enslow Analytics Portfolio</Link>
       </a>
       <ul className="nav justify-content-end">
         <li className="nav-item-first">
